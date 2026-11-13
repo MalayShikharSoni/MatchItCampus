@@ -1,0 +1,30 @@
+<resources>
+    <string name="app_name">MatchIt Campus</string>
+
+    <!-- Top-level navigation destinations -->
+    <string name="nav_home">Home</string>
+    <string name="nav_map">Map</string>
+    <string name="nav_my_posts">My posts</string>
+    <string name="nav_claims">Claims</string>
+    <string name="nav_profile">Profile</string>
+
+    <!-- Screen titles -->
+    <string name="title_login">Log in</string>
+    <string name="title_register">Create account</string>
+    <string name="title_post_item">Post an item</string>
+    <string name="title_item_detail">Item details</string>
+    <string name="title_debug_tools">Debug tools</string>
+
+    <!-- Common actions -->
+    <string name="action_back">Back</string>
+    <string name="action_post_item">Post item</string>
+
+    <!-- Phase 1 placeholder text (replaced as each screen is built) -->
+    <string name="placeholder_body">This screen is a placeholder and will be built in a later phase.</string>
+    <string name="placeholder_continue">Continue (placeholder sign-in)</string>
+    <string name="placeholder_go_register">No account? Register</string>
+    <string name="placeholder_open_sample_item">Open a sample item</string>
+    <string name="placeholder_logout">Log out (placeholder)</string>
+    <string name="placeholder_debug_tools">Open debug tools</string>
+    <string name="placeholder_item_id">Item id: %1$s</string>
+</resources>

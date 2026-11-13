@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- App colours live in ui/theme/Color.kt (Compose). This file only keeps plain
+     black/white for XML resources such as the launcher icon. -->
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

@@ -1,0 +1,30 @@
+# --- Gradle / build output ---
+.gradle/
+build/
+.kotlin/
+/captures
+.externalNativeBuild
+.cxx
+
+# --- Machine-specific config (never commit) ---
+local.properties
+
+# Firebase config: each laptop copies this in by hand (see README / docs/HANDOFF.md)
+app/google-services.json
+
+# --- IDE ---
+# Android Studio regenerates everything in .idea from the Gradle files,
+# so ignoring the whole folder avoids merge conflicts between our two laptops.
+.idea/
+*.iml
+
+# --- Claude Code ---
+# settings.json is shared (it disables AI attribution); settings.local.json is per-person.
+.claude/settings.local.json
+
+# Project brief: shared between laptops outside Git, must never be committed
+MATCHIT_CAMPUS_PROMPT.md
+
+# --- OS files ---
+.DS_Store
+Thumbs.db
