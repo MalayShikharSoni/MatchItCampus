@@ -5,17 +5,20 @@ Keep it short and accurate. Never delete past decisions; mark them **superseded*
 
 ## 1. Status
 
-| Phase | Driver | Branch | PR | Merged |
+From Phase 2 on, all work is committed and pushed directly to `main` (see the
+"Git workflow" decision in section 3). There are no phase branches or PRs.
+
+| Phase | Driver | Branch | PR | On `main` |
 |---|---|---|---|---|
 | 0 Environment check | Dev A (MalayShikharSoni) | — (no code) | — | n/a |
-| 1 Scaffold | Dev A (MalayShikharSoni) | `feature/01-scaffold` | _not opened yet_ | no |
-| 2 Room data layer | Dev B | `feature/02-room` | | |
-| 3 Firebase + sync | Dev A | `feature/03-firebase` | | |
-| 4 Matching engine | Dev B | `feature/04-matching` | | |
-| 5 Core UI | Dev A | `feature/05-core-ui` | | |
-| 6 Location + map | Dev B | `feature/06-location-map` | | |
-| 7 Polish + migration | Dev A | `feature/07-polish` | | |
-| 8 Tests + docs | Dev B | `feature/08-tests-docs` | | |
+| 1 Scaffold | Dev A (MalayShikharSoni) | `feature/01-scaffold` (merged, last phase branch) | [#1](https://github.com/MalayShikharSoni/MatchItCampus/pull/1) | yes |
+| 2 Room data layer | Dev B | `main` | — | |
+| 3 Firebase + sync | Dev A | `main` | — | |
+| 4 Matching engine | Dev B | `main` | — | |
+| 5 Core UI | Dev A | `main` | — | |
+| 6 Location + map | Dev B | `main` | — | |
+| 7 Polish + migration | Dev A | `main` | — | |
+| 8 Tests + docs | Dev B | `main` | — | |
 
 ## 2. Current state
 
@@ -38,6 +41,14 @@ exists (see section 5), then Run ▶ on an emulator or device.
 
 ## 3. Decisions and deviations from the brief
 
+- **Git workflow: work only on `main` (decided 2026-11-13, after Phase 1).** This supersedes
+  the brief's per-phase `feature/NN-*` branches and PR review/merge (brief 11.3 step 5, 11.5).
+  Each phase now: `git checkout main && git pull`, work and commit on `main`, run the
+  attribution check (brief 11.6) against `origin/main..HEAD`, then `git push origin main`.
+  No PRs and no review step. GitHub does not enforce reviews (`main` is unprotected).
+  Everything else in 11.4 and 11.6 still applies: the laptop's own git identity, small
+  conventional commits, no AI attribution, and never committing `MATCHIT_CAMPUS_PROMPT.md`.
+  Always pull before starting, so the two laptops don't diverge.
 - **Repo setup (Phase 1):** the Android Studio project was created first and then linked
   to the GitHub repo (`git init`, `git remote add origin …`, `git pull origin main`)
   instead of cloning. The result is the same: the project sits in the repo root next to `README.md`.
@@ -64,6 +75,10 @@ exists (see section 5), then Run ▶ on an emulator or device.
   `MatchItRoot` uses a `rememberSaveable` "signed in" flag until Phase 3 replaces it with
   `AuthRepository.authState`.
 - **`.idea/` is fully git-ignored** to avoid IDE-file merge conflicts between the two laptops.
+- **`.claude/` is fully git-ignored (2026-11-13).** Local tool settings stay on each laptop and
+  are shared directly, like the brief. This supersedes Phase 1, where one settings file was committed.
+- **Contributors:** Dev A is MalayShikharSoni (repo owner). Dev B is added as a GitHub collaborator,
+  and on any other laptop the configured git identity is Dev B's. No contributor table is kept.
 - **`.gitattributes`** added: LF for `gradlew`, CRLF for `.bat`, binary for `.tflite`/`.jar`/images.
 
 ### Library versions
@@ -98,10 +113,8 @@ MapLibre Compose, which is pre-1.0.
 
 ## 4. Known issues / TODOs
 
-- Contributor table (brief 11.1) is not filled in yet. Dev B's name and GitHub username
-  will be added after Phase 1.
-- `gh` CLI is installed on Dev A's laptop but not logged in (`gh auth login`), so PRs may
-  need to be opened in the browser.
+- The merged branch `feature/01-scaffold` still exists on GitHub. It's safe to delete it
+  (GitHub's "Delete branch" button on PR #1).
 - No tablet emulator exists on Dev A's laptop yet. Create one before Phase 7 (two-pane layout).
 - The launcher icon is still the Android Studio default.
 
@@ -112,13 +125,14 @@ Things each laptop needs that are **not** in the repo:
 - `app/google-services.json` from the Firebase console (project `matchit-campus`, Android app
   `com.matchitcampus.app`). Git-ignored. Without it the build fails at `processDebugGoogleServices`.
 - JDK 17+ (Android Studio's bundled JDK is fine) and Android SDK platform 37.
-- `.claude/settings.json` **is** in the repo; restart Claude Code after the first clone so it's read.
+- The `.claude/` folder in the project root (shared directly, git-ignored).
 
 ## 6. Next phase
 
-**Phase 2: Room data layer**, driven by **Dev B** on `feature/02-room`.
-- Dev B clones the repo, copies in `MATCHIT_CAMPUS_PROMPT.md` and `app/google-services.json`,
-  and checks their own git identity.
+**Phase 2: Room data layer**, driven by **Dev B**, working directly on `main`.
+- Dev B clones the repo, copies in `MATCHIT_CAMPUS_PROMPT.md`, `.claude/` and
+  `app/google-services.json`, and checks their own git identity.
+- Don't create a `feature/02-room` branch or a PR (see the Git workflow decision in section 3).
 - Add Room 2.8.5 (runtime, ktx, compiler via `ksp(...)`, testing). Set the schema location to
   `app/schemas/` (Room Gradle plugin or KSP arg) with `exportSchema = true`.
 - `AppContainer` is where the database should be built (`by lazy`), using `applicationContext`.
