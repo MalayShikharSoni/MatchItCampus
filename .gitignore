@@ -18,9 +18,8 @@ app/google-services.json
 .idea/
 *.iml
 
-# --- Claude Code ---
-# settings.json is shared (it disables AI attribution); settings.local.json is per-person.
-.claude/settings.local.json
+# --- Local tool settings (kept on each laptop, never committed) ---
+.claude/
 
 # Project brief: shared between laptops outside Git, must never be committed
 MATCHIT_CAMPUS_PROMPT.md
