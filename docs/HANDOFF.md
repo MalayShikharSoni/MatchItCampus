@@ -64,6 +64,10 @@ exists (see section 5), then Run ▶ on an emulator or device.
 - **Gradle wrapper 9.8.2.** AGP 9.5 needs Gradle 9.6.0 or newer. `gradle-wrapper.properties`
   was edited by hand (URL + SHA-256 from services.gradle.org) because `./gradlew wrapper`
   failed its network check on this laptop.
+- **AGP 9.2.0 instead of 9.5.0 (2026-11-23, Phase 2 start, Dev B's laptop).** Supersedes the
+  9.5.0 choice from Phase 1. Dev B's Android Studio (build 253, 2025.3) can't sync AGP 9.5.
+  `assembleDebug` and `testDebugUnitTest` pass on 9.2.0, which still works with Gradle 9.8.2.
+  Move back up only when both laptops' Android Studio versions support the newer AGP.
 - **Adaptive navigation:** `NavigationSuiteScaffold` from `material3-adaptive-navigation-suite`,
   with our own width-only rule instead of the library default, because the default shows a
   bottom bar on a landscape phone (compact height). Uses `currentWindowAdaptiveInfoV2()`
@@ -89,7 +93,7 @@ MapLibre Compose, which is pre-1.0.
 
 | Library | Version | Status |
 |---|---|---|
-| Android Gradle Plugin | 9.5.0 | in use |
+| Android Gradle Plugin | 9.2.0 (was 9.5.0, see decisions) | in use |
 | Gradle | 9.8.2 | in use |
 | Kotlin (+ Compose compiler & serialization plugins) | 2.4.21 | in use |
 | KSP | 2.3.13 | in use (plugin only) |
