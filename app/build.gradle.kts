@@ -8,6 +8,8 @@ plugins {
     alias(libs.plugins.ksp)
     // Reads app/google-services.json and turns it into resources Firebase reads at runtime.
     alias(libs.plugins.google.services)
+    // Room Gradle plugin: exports the schema JSON on every build (see the `room` block below).
+    alias(libs.plugins.room)
 }
 
 android {
@@ -47,6 +49,13 @@ android {
     }
 }
 
+room {
+    // Each database version's schema is exported here as JSON and committed to Git.
+    // That gives a reviewable history of the schema, and MigrationTestHelper uses
+    // these files to build old versions of the database in the Phase 7 migration test.
+    schemaDirectory("$projectDir/schemas")
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
@@ -55,6 +64,11 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
+
+    implementation(libs.androidx.room.runtime)
+    // withTransaction { } for suspend transactions that span several DAOs.
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
@@ -68,9 +82,16 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.espresso.core)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.room.testing)
+    androidTestImplementation(libs.kotlinx.coroutines.test)
+    // Turbine: readable assertions on Flow emissions (awaitItem()) in DAO tests.
+    androidTestImplementation(libs.turbine)
 }
