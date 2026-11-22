@@ -2,6 +2,10 @@ package com.matchitcampus.app.di
 
 import android.content.Context
 import android.util.Log
+import com.matchitcampus.app.data.local.AppDatabase
+import com.matchitcampus.app.data.repository.ClaimRepository
+import com.matchitcampus.app.data.repository.ItemRepository
+import com.matchitcampus.app.data.repository.ZoneRepository
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,8 +21,8 @@ private const val TAG = "MatchIt/AppContainer"
  * constructor call that you can read top to bottom, with no generated code or annotations.
  * ViewModels get what they need from here through their factories.
  *
- * Later phases add the Room database, Firestore, repositories, the sync manager and the
- * text embedder here. Each is created lazily (`by lazy`) so nothing heavy is built until
+ * Phase 2 adds the Room database and the local repositories. Later phases add Firestore,
+ * the sync manager and the text embedder here. Each is created lazily (`by lazy`) so nothing heavy is built until
  * something actually uses it.
  *
  * @param context any context; only the application context is kept, so an Activity can
@@ -48,4 +52,27 @@ class AppContainer(context: Context) {
      */
     val applicationScope: CoroutineScope =
         CoroutineScope(SupervisorJob() + Dispatchers.IO + exceptionHandler)
+
+    /**
+     * The one Room database for the whole app. `by lazy` means it's built on first use,
+     * not at app start, and the same instance is shared by every repository.
+     */
+    val database: AppDatabase by lazy { AppDatabase.build(applicationContext) }
+
+    val itemRepository: ItemRepository by lazy { ItemRepository(database.itemDao()) }
+
+    val claimRepository: ClaimRepository by lazy { ClaimRepository(database) }
+
+    val zoneRepository: ZoneRepository by lazy {
+        ZoneRepository(
+            zoneDao = database.campusZoneDao(),
+            readSeedJson = {
+                applicationContext.assets.open(ZONES_ASSET).bufferedReader().use { it.readText() }
+            },
+        )
+    }
+
+    private companion object {
+        const val ZONES_ASSET = "campus_zones.json"
+    }
 }

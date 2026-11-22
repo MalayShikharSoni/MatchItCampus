@@ -3,6 +3,7 @@ package com.matchitcampus.app
 import android.app.Application
 import android.util.Log
 import com.matchitcampus.app.di.AppContainer
+import kotlinx.coroutines.launch
 
 private const val TAG = "MatchIt/MatchItApp"
 
@@ -24,5 +25,9 @@ class MatchItApp : Application() {
         super.onCreate()
         container = AppContainer(this)
         Log.d(TAG, "AppContainer created")
+        // Fill the zone table on first run. It's launched in the app-wide scope (on IO) so it
+        // doesn't slow down startup, and it isn't cancelled when a screen closes. On later
+        // launches it returns straight away, because the table already has rows.
+        container.applicationScope.launch { container.zoneRepository.seedIfEmpty() }
     }
 }
