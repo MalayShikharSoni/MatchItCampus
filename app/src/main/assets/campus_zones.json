@@ -1,0 +1,158 @@
+{
+  "_readme": "Campus zones, seeded into the database the first time the app runs. ALL coordinates are placeholders at the approximate campus centre (31.2550, 75.7050) and every zone has isPlaceholder=true, so none is auto-suggested from GPS. Names also still need checking. To fix: use Profile > Debug tools > Zone Capture on campus, export the JSON and paste it over this file. 'type' must be one of: ACADEMIC, HOSTEL, FOOD, LIBRARY, ADMIN, SPORTS, MEDICAL, GATE, OTHER. Radius: about 60 m for a block, 120 m for a large area. Keep ids stable: items refer to zones by id. Changes here only reach a phone with a fresh install (or cleared app data), because seeding runs only when the zone table is empty.",
+  "zones": [
+    {
+      "id": "main_gate",
+      "name": "Main Gate",
+      "type": "GATE",
+      "latitude": 31.255,
+      "longitude": 75.705,
+      "radiusMeters": 120.0,
+      "isPlaceholder": true
+    },
+    {
+      "id": "uni_mall",
+      "name": "Uni Mall",
+      "type": "FOOD",
+      "latitude": 31.255,
+      "longitude": 75.705,
+      "radiusMeters": 120.0,
+      "isPlaceholder": true
+    },
+    {
+      "id": "central_library",
+      "name": "Central Library",
+      "type": "LIBRARY",
+      "latitude": 31.255,
+      "longitude": 75.705,
+      "radiusMeters": 120.0,
+      "isPlaceholder": true
+    },
+    {
+      "id": "uni_hospital",
+      "name": "Uni Hospital",
+      "type": "MEDICAL",
+      "latitude": 31.255,
+      "longitude": 75.705,
+      "radiusMeters": 120.0,
+      "isPlaceholder": true
+    },
+    {
+      "id": "sdm_auditorium",
+      "name": "Shanti Devi Mittal Auditorium",
+      "type": "ADMIN",
+      "latitude": 31.255,
+      "longitude": 75.705,
+      "radiusMeters": 120.0,
+      "isPlaceholder": true
+    },
+    {
+      "id": "brm_unipolis",
+      "name": "Baldev Raj Mittal Unipolis",
+      "type": "ADMIN",
+      "latitude": 31.255,
+      "longitude": 75.705,
+      "radiusMeters": 120.0,
+      "isPlaceholder": true
+    },
+    {
+      "id": "sports_complex",
+      "name": "Sports Complex",
+      "type": "SPORTS",
+      "latitude": 31.255,
+      "longitude": 75.705,
+      "radiusMeters": 120.0,
+      "isPlaceholder": true
+    },
+    {
+      "id": "boys_hostels",
+      "name": "Boys Hostels",
+      "type": "HOSTEL",
+      "latitude": 31.255,
+      "longitude": 75.705,
+      "radiusMeters": 120.0,
+      "isPlaceholder": true
+    },
+    {
+      "id": "girls_hostels",
+      "name": "Girls Hostels",
+      "type": "HOSTEL",
+      "latitude": 31.255,
+      "longitude": 75.705,
+      "radiusMeters": 120.0,
+      "isPlaceholder": true
+    },
+    {
+      "id": "block_32",
+      "name": "Block 32",
+      "type": "ACADEMIC",
+      "latitude": 31.255,
+      "longitude": 75.705,
+      "radiusMeters": 60.0,
+      "isPlaceholder": true
+    },
+    {
+      "id": "block_33",
+      "name": "Block 33",
+      "type": "ACADEMIC",
+      "latitude": 31.255,
+      "longitude": 75.705,
+      "radiusMeters": 60.0,
+      "isPlaceholder": true
+    },
+    {
+      "id": "block_34",
+      "name": "Block 34",
+      "type": "ACADEMIC",
+      "latitude": 31.255,
+      "longitude": 75.705,
+      "radiusMeters": 60.0,
+      "isPlaceholder": true
+    },
+    {
+      "id": "block_35",
+      "name": "Block 35",
+      "type": "ACADEMIC",
+      "latitude": 31.255,
+      "longitude": 75.705,
+      "radiusMeters": 60.0,
+      "isPlaceholder": true
+    },
+    {
+      "id": "block_36",
+      "name": "Block 36",
+      "type": "ACADEMIC",
+      "latitude": 31.255,
+      "longitude": 75.705,
+      "radiusMeters": 60.0,
+      "isPlaceholder": true
+    },
+    {
+      "id": "block_37",
+      "name": "Block 37",
+      "type": "ACADEMIC",
+      "latitude": 31.255,
+      "longitude": 75.705,
+      "radiusMeters": 60.0,
+      "isPlaceholder": true
+    },
+    {
+      "id": "block_38",
+      "name": "Block 38",
+      "type": "ACADEMIC",
+      "latitude": 31.255,
+      "longitude": 75.705,
+      "radiusMeters": 60.0,
+      "isPlaceholder": true
+    },
+    {
+      "id": "other",
+      "name": "Other / Not sure",
+      "type": "OTHER",
+      "latitude": 31.255,
+      "longitude": 75.705,
+      "radiusMeters": 120.0,
+      "isPlaceholder": true
+    }
+  ]
+}
