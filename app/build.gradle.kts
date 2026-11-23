@@ -77,6 +77,9 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.lifecycle.process)
 
+    // On-device text embeddings for semantic matching. Only ml/TextEmbedderHelper uses it.
+    implementation(libs.mediapipe.tasks.text)
+
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
