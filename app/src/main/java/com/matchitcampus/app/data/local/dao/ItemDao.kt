@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
+import com.matchitcampus.app.data.local.Converters
 import com.matchitcampus.app.data.local.entity.ItemEntity
 import com.matchitcampus.app.data.local.relation.ItemWithZone
 import com.matchitcampus.app.domain.model.ItemStatus
@@ -77,6 +78,54 @@ interface ItemDao {
     /** Candidates for matching: open items of one type. */
     @Query("SELECT * FROM items WHERE type = :type AND status = 'OPEN' AND syncState != 'PENDING_DELETE'")
     suspend fun getOpenByType(type: ItemType): List<ItemEntity>
+
+    /** Every item of one type, for search (which ranks them itself). */
+    @Query("SELECT * FROM items WHERE type = :type AND syncState != 'PENDING_DELETE'")
+    suspend fun getByType(type: ItemType): List<ItemEntity>
+
+    /**
+     * Items whose embedding is missing or was made by another model version, so matching has
+     * to (re)compute it. Deleted rows are skipped: they'll never be matched again.
+     */
+    @Query(
+        """
+        SELECT * FROM items
+        WHERE (embedding IS NULL OR embeddingVersion IS NULL OR embeddingVersion != :version)
+          AND syncState != 'PENDING_DELETE'
+        """,
+    )
+    suspend fun getNeedingEmbedding(version: Int): List<ItemEntity>
+
+    /** The same rows as a Flow, so `MatchRepository` notices new or edited items by itself. */
+    @Query(
+        """
+        SELECT * FROM items
+        WHERE (embedding IS NULL OR embeddingVersion IS NULL OR embeddingVersion != :version)
+          AND syncState != 'PENDING_DELETE'
+        """,
+    )
+    fun observeNeedingEmbedding(version: Int): Flow<List<ItemEntity>>
+
+    /**
+     * Stores a freshly computed embedding, but only if the row hasn't changed since its text
+     * was read ([updatedAt] still the same). Otherwise the vector belongs to old text, and the
+     * edited row is picked up again on the next pass.
+     *
+     * `updatedAt` and `syncState` are deliberately left alone: the embedding is local only, so
+     * computing it is not a change that needs syncing.
+     *
+     * @return 1 if stored, 0 if the row had changed or is gone.
+     */
+    suspend fun updateEmbedding(id: String, embedding: FloatArray, version: Int, updatedAt: Long): Int =
+        updateEmbeddingBlob(id, Converters().floatArrayToBytes(embedding)!!, version, updatedAt)
+
+    /**
+     * The SQL behind [updateEmbedding]. It takes the BLOB bytes, because Room treats an array
+     * *parameter* as a list of values for `IN (...)` and doesn't apply the TypeConverter to it,
+     * which produced invalid SQL (`embedding = ?,?`). Use [updateEmbedding] instead.
+     */
+    @Query("UPDATE items SET embedding = :embedding, embeddingVersion = :version WHERE id = :id AND updatedAt = :updatedAt")
+    suspend fun updateEmbeddingBlob(id: String, embedding: ByteArray, version: Int, updatedAt: Long): Int
 
     /** Rows Phase 3's SyncManager still has to push or delete remotely. */
     @Query("SELECT * FROM items WHERE syncState = :syncState")

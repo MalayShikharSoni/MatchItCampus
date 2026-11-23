@@ -3,11 +3,14 @@ package com.matchitcampus.app.data.local.mapper
 import com.matchitcampus.app.data.local.entity.CampusZoneEntity
 import com.matchitcampus.app.data.local.entity.ClaimEntity
 import com.matchitcampus.app.data.local.entity.ItemEntity
+import com.matchitcampus.app.data.local.entity.MatchEntity
 import com.matchitcampus.app.data.local.relation.ClaimWithItems
 import com.matchitcampus.app.data.local.relation.ItemWithZone
+import com.matchitcampus.app.data.local.relation.MatchWithFallback
 import com.matchitcampus.app.domain.model.CampusZone
 import com.matchitcampus.app.domain.model.Claim
 import com.matchitcampus.app.domain.model.Item
+import com.matchitcampus.app.domain.model.MatchResult
 
 /*
  * Conversions between Room entities and domain models.
@@ -132,4 +135,32 @@ fun Claim.toEntity(): ClaimEntity = ClaimEntity(
     createdAt = createdAt,
     updatedAt = updatedAt,
     syncState = syncState,
+)
+
+/** The row to cache for a computed match. `usedFallback` isn't stored (see [MatchWithFallback]). */
+fun MatchResult.toEntity(computedAt: Long): MatchEntity = MatchEntity(
+    sourceItemId = sourceItemId,
+    candidateItemId = candidateItemId,
+    score = score,
+    textScore = textScore,
+    categoryScore = categoryScore,
+    locationScore = locationScore,
+    dateScore = dateScore,
+    distanceMeters = distanceMeters,
+    daysApart = daysApart,
+    computedAt = computedAt,
+)
+
+fun MatchWithFallback.toDomain(): MatchResult = MatchResult(
+    sourceItemId = match.sourceItemId,
+    candidateItemId = match.candidateItemId,
+    score = match.score,
+    textScore = match.textScore,
+    categoryScore = match.categoryScore,
+    locationScore = match.locationScore,
+    dateScore = match.dateScore,
+    distanceMeters = match.distanceMeters,
+    // The column is nullable in the v1 schema, but MatchRepository always writes it.
+    daysApart = match.daysApart ?: 0,
+    usedFallback = usedFallback,
 )

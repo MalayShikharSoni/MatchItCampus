@@ -19,9 +19,11 @@ import com.matchitcampus.app.data.remote.UserRemoteDataSource
 import com.matchitcampus.app.data.repository.AuthRepository
 import com.matchitcampus.app.data.repository.ClaimRepository
 import com.matchitcampus.app.data.repository.ItemRepository
+import com.matchitcampus.app.data.repository.MatchRepository
 import com.matchitcampus.app.data.repository.ZoneRepository
 import com.matchitcampus.app.data.sync.ConnectivityObserver
 import com.matchitcampus.app.data.sync.SyncManager
+import com.matchitcampus.app.ml.TextEmbedderHelper
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,8 +43,8 @@ private const val TAG = "MatchIt/AppContainer"
  * ViewModels get what they need from here through their factories.
  *
  * Phase 2 added the Room database and the local repositories; Phase 3 adds Firebase Auth,
- * Firestore and the sync manager. Phase 4 adds the text embedder. Each is created lazily (`by lazy`) so nothing heavy is built until
- * something actually uses it.
+ * Firestore and the sync manager; Phase 4 adds the text embedder and matching. Each is created
+ * lazily (`by lazy`) so nothing heavy is built until something actually uses it.
  *
  * @param context any context; only the application context is kept, so an Activity can
  *   never leak through this long-lived object.
@@ -144,6 +146,19 @@ class AppContainer(context: Context) {
             syncPreferences = syncPreferences,
             connectivity = connectivityObserver,
             appInForeground = appInForeground,
+            scope = applicationScope,
+        )
+    }
+
+    // ---------- Matching (Phase 4) ----------
+
+    /** The on-device text model. Building this object is cheap; the model itself loads on first use. */
+    val textEmbedder: TextEmbedderHelper by lazy { TextEmbedderHelper(applicationContext) }
+
+    val matchRepository: MatchRepository by lazy {
+        MatchRepository(
+            database = database,
+            embedder = textEmbedder,
             scope = applicationScope,
         )
     }

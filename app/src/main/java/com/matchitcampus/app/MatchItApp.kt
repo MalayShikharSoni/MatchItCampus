@@ -32,5 +32,8 @@ class MatchItApp : Application() {
         // Sync runs for the whole life of the process; it decides by itself when to listen
         // (signed in and app visible) and when to push (pending changes and online).
         container.syncManager.start()
+        // Matching watches Room for items without an embedding (new posts, edits, synced items)
+        // and embeds and matches them in the background.
+        container.matchRepository.start()
     }
 }
