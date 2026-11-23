@@ -16,6 +16,9 @@ interface UserDao {
     @Query("SELECT * FROM users WHERE uid = :uid")
     fun observe(uid: String): Flow<UserEntity?>
 
+    @Query("SELECT * FROM users WHERE uid = :uid")
+    suspend fun getById(uid: String): UserEntity?
+
     /** Called on logout. */
     @Query("DELETE FROM users")
     suspend fun deleteAll()
