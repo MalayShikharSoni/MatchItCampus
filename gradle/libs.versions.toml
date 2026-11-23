@@ -18,6 +18,9 @@ navigationCompose = "2.10.2"
 kotlinxSerialization = "1.12.0"
 kotlinxCoroutines = "1.11.0"
 room = "2.8.5"
+# Phase 3 (checked 2026-11-23). The BoM picks matching Auth (25.0.0) and Firestore (27.2.0) versions.
+firebaseBom = "35.2.0"
+datastore = "1.3.0"
 
 junit = "4.13.2"
 androidxTestJunit = "1.3.0"
@@ -40,6 +43,18 @@ androidx-room-runtime = { group = "androidx.room", name = "room-runtime", versio
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
+
+# Firebase (Spark plan: Auth + Firestore only). Versions come from the BoM, so these have none.
+firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
+firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
+firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
+# Task.await(): turns Firebase's callback-based Tasks into suspend calls.
+kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "kotlinxCoroutines" }
+
+# DataStore Preferences: small key-value settings (the last sync time).
+androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
+# ProcessLifecycleOwner: tells sync whether the app is in the foreground.
+androidx-lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycle" }
 
 # Compose: versions come from the BOM, so these entries have no version.
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }

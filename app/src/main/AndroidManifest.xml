@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Firebase Auth and Firestore talk to Google's servers. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- ConnectivityObserver watches for the network coming back, to push pending changes. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <!-- android:name points Android at our Application subclass, which builds the AppContainer. -->
     <application
         android:name=".MatchItApp"
