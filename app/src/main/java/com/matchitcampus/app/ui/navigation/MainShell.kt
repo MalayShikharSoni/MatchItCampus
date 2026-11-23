@@ -23,13 +23,9 @@ import androidx.navigation.compose.rememberNavController
  * of items. We choose which one with [navigationSuiteTypeFor], from the current window
  * size, so rotating the phone or running on a tablet switches automatically.
  *
- * @param onLogout called when the user logs out; the caller switches to [AuthNavHost].
  */
 @Composable
-fun MainShell(
-    onLogout: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+fun MainShell(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
     // Observing the back stack as State makes this recompose whenever the screen changes,
     // so the highlighted tab always matches what is on screen.
@@ -52,7 +48,7 @@ fun MainShell(
             }
         },
     ) {
-        MainNavHost(navController = navController, onLogout = onLogout)
+        MainNavHost(navController = navController)
     }
 }
 

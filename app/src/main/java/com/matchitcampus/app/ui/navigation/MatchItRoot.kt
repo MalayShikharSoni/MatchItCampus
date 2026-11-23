@@ -2,24 +2,23 @@ package com.matchitcampus.app.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 /**
  * Top of the UI tree: shows the auth graph when signed out and the main app when signed in.
  *
- * Phase 1 placeholder: "signed in" is just a local flag flipped by a button. In Phase 3
- * this flag is replaced by `AuthRepository.authState`, so the switch follows real
- * Firebase sign-in. `rememberSaveable` keeps the flag across rotation in the meantime.
+ * The switch follows Firebase sign-in through [RootViewModel]. Because the two graphs are
+ * separate composables with separate NavControllers, switching replaces the whole back
+ * stack: after logging out, Back can't return to the signed-in screens.
  */
 @Composable
-fun MatchItRoot() {
-    var isSignedIn by rememberSaveable { mutableStateOf(false) }
+fun MatchItRoot(viewModel: RootViewModel = viewModel(factory = RootViewModel.Factory)) {
+    val isSignedIn by viewModel.isSignedIn.collectAsStateWithLifecycle()
 
     if (isSignedIn) {
-        MainShell(onLogout = { isSignedIn = false })
+        MainShell()
     } else {
-        AuthNavHost(onSignedIn = { isSignedIn = true })
+        AuthNavHost()
     }
 }

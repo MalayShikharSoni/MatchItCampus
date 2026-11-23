@@ -8,13 +8,13 @@ import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.matchitcampus.app.BuildConfig
 import com.matchitcampus.app.ui.claims.ClaimsScreen
-import com.matchitcampus.app.ui.debug.DebugToolsScreen
+import com.matchitcampus.app.ui.debug.DebugToolsRoute
 import com.matchitcampus.app.ui.detail.ItemDetailScreen
 import com.matchitcampus.app.ui.home.HomeScreen
 import com.matchitcampus.app.ui.map.MapScreen
 import com.matchitcampus.app.ui.myposts.MyPostsScreen
 import com.matchitcampus.app.ui.post.PostItemScreen
-import com.matchitcampus.app.ui.profile.ProfileScreen
+import com.matchitcampus.app.ui.profile.ProfileRoute
 
 /**
  * Navigation graph for the signed-in part of the app.
@@ -26,7 +26,6 @@ import com.matchitcampus.app.ui.profile.ProfileScreen
 @Composable
 fun MainNavHost(
     navController: NavHostController,
-    onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val goBack: () -> Unit = { navController.popBackStack() }
@@ -46,10 +45,9 @@ fun MainNavHost(
         composable<Routes.MyPosts> { MyPostsScreen() }
         composable<Routes.Claims> { ClaimsScreen() }
         composable<Routes.Profile> {
-            ProfileScreen(
+            ProfileRoute(
                 showDebugTools = BuildConfig.DEBUG,
                 onOpenDebugTools = { navController.navigate(Routes.DebugTools) },
-                onLogout = onLogout,
             )
         }
 
@@ -62,7 +60,7 @@ fun MainNavHost(
 
         // Release builds never register this route, so the debug screen cannot be reached there.
         if (BuildConfig.DEBUG) {
-            composable<Routes.DebugTools> { DebugToolsScreen(onBack = goBack) }
+            composable<Routes.DebugTools> { DebugToolsRoute(onBack = goBack) }
         }
     }
 }

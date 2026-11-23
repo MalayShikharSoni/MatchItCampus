@@ -5,22 +5,18 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.matchitcampus.app.ui.auth.LoginScreen
-import com.matchitcampus.app.ui.auth.RegisterScreen
+import com.matchitcampus.app.ui.auth.LoginRoute
+import com.matchitcampus.app.ui.auth.RegisterRoute
 
 /**
  * Navigation graph shown while the user is signed out: Login and Register.
  *
- * It has its own NavController, separate from the main graph's, so signing in or out
- * swaps the whole graph and the user can never press Back into the other one.
- *
- * @param onSignedIn called once sign-in succeeds; the caller switches to [MainShell].
+ * It has its own NavController, separate from the main graph's. A successful sign-in
+ * doesn't navigate anywhere from here: [MatchItRoot] sees the new auth state and replaces
+ * this whole graph with [MainShell].
  */
 @Composable
-fun AuthNavHost(
-    onSignedIn: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+fun AuthNavHost(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
     NavHost(
         navController = navController,
@@ -28,16 +24,10 @@ fun AuthNavHost(
         modifier = modifier,
     ) {
         composable<Routes.Login> {
-            LoginScreen(
-                onContinue = onSignedIn,
-                onRegisterClick = { navController.navigate(Routes.Register) },
-            )
+            LoginRoute(onRegisterClick = { navController.navigate(Routes.Register) })
         }
         composable<Routes.Register> {
-            RegisterScreen(
-                onContinue = onSignedIn,
-                onBack = { navController.popBackStack() },
-            )
+            RegisterRoute(onLoginClick = { navController.popBackStack() })
         }
     }
 }

@@ -18,13 +18,59 @@
     <!-- Common actions -->
     <string name="action_back">Back</string>
     <string name="action_post_item">Post item</string>
+    <string name="action_cancel">Cancel</string>
+
+    <!-- Auth screens -->
+    <string name="auth_tagline">Lost something on campus? Found something? Start here.</string>
+    <string name="field_name">Full name</string>
+    <string name="field_email">Email</string>
+    <string name="field_password">Password</string>
+    <string name="field_reg_no">LPU registration number (optional)</string>
+    <string name="password_show">Show</string>
+    <string name="password_hide">Hide</string>
+    <string name="password_hint_new">At least 6 characters</string>
+    <string name="action_log_in">Log in</string>
+    <string name="action_create_account">Create account</string>
+    <string name="action_go_register">No account? Create one</string>
+    <string name="action_go_login">Already have an account? Log in</string>
+
+    <!-- Field validation -->
+    <string name="error_email_required">Enter your email</string>
+    <string name="error_email_invalid">That doesn\'t look like an email address</string>
+    <string name="error_password_required">Enter your password</string>
+    <string name="error_password_too_short">Use at least 6 characters</string>
+    <string name="error_name_required">Enter your name</string>
+    <string name="error_name_too_long">Keep it under 50 characters</string>
+    <string name="error_reg_no_invalid">Digits only, up to 12</string>
+
+    <!-- Auth errors from the server -->
+    <string name="auth_error_wrong_credentials">Wrong email or password.</string>
+    <string name="auth_error_invalid_email">That email address isn\'t valid.</string>
+    <string name="auth_error_email_in_use">An account with this email already exists. Try logging in.</string>
+    <string name="auth_error_weak_password">That password is too weak. Try a longer one.</string>
+    <string name="auth_error_disabled">This account has been disabled.</string>
+    <string name="auth_error_too_many">Too many attempts. Wait a minute and try again.</string>
+    <string name="auth_error_network">Couldn\'t reach the server. Check your connection and try again.</string>
+    <string name="auth_error_unknown">Something went wrong. Please try again.</string>
+
+    <!-- Profile -->
+    <string name="action_log_out">Log out</string>
+    <string name="logout_warning_title">Log out with unsynced changes?</string>
+    <string name="logout_warning_body">You have %1$d change(s) that haven\'t reached the server yet. If you log out now, they won\'t be uploaded.</string>
+    <string name="logout_anyway">Log out anyway</string>
+    <string name="profile_reg_no">Reg. no. %1$s</string>
+    <string name="profile_unsynced">%1$d change(s) waiting to sync</string>
+    <string name="profile_all_synced">All changes synced</string>
+
+    <!-- Debug tools -->
+    <string name="debug_force_sync">Force sync</string>
+    <string name="debug_post_test_item">Post a test FOUND item</string>
+    <string name="debug_sync_done">Sync finished</string>
+    <string name="debug_test_item_posted">Test item saved; it uploads automatically</string>
 
     <!-- Phase 1 placeholder text (replaced as each screen is built) -->
     <string name="placeholder_body">This screen is a placeholder and will be built in a later phase.</string>
-    <string name="placeholder_continue">Continue (placeholder sign-in)</string>
-    <string name="placeholder_go_register">No account? Register</string>
     <string name="placeholder_open_sample_item">Open a sample item</string>
-    <string name="placeholder_logout">Log out (placeholder)</string>
     <string name="placeholder_debug_tools">Open debug tools</string>
     <string name="placeholder_item_id">Item id: %1$s</string>
 </resources>
