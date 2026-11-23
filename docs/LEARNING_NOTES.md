@@ -173,3 +173,89 @@ examiner might ask, with short answers.
    Room writes each database version's schema as JSON in `app/schemas/`. It gives a history
    of schema changes in Git, and `MigrationTestHelper` uses those files to create a v1
    database and check that the migration to v2 works (Phase 7).
+
+---
+
+## Phase 3: Firebase Auth, Firestore and sync
+
+### Concepts used
+
+- **Firebase Auth (email + password)** wrapped in `AuthRepository`. The sign-in state is a
+  `StateFlow<AuthUser?>` built from an `AuthStateListener` with `callbackFlow` + `stateIn`.
+- **`callbackFlow` + `awaitClose`**: turns callback APIs (auth listener, Firestore snapshot
+  listeners, the network callback) into Flows. The callback is removed when collection stops.
+- **Cloud Firestore** with a memory-only cache, so Room stays the only thing on disk.
+- **Offline-first sync**: Room is the single source of truth. Local writes are marked
+  `PENDING_UPLOAD` / `PENDING_DELETE` and pushed later; remote changes are merged into Room.
+- **Last-write-wins conflict resolution** in a pure function (`SyncMerge`).
+- **Incremental sync with server timestamps** (quota awareness on the Spark plan).
+- **Soft delete (tombstones)**, so deletions reach other phones.
+- **Flow operators**: `combine`, `map`, `distinctUntilChanged`, `debounce`, `filter`,
+  `flatMapLatest`, `collectLatest`, `first`, `onEach`, `stateIn`.
+- **Structured concurrency**: one sync session = one `coroutineScope` with three children,
+  cancelled together. `SupervisorJob` and `CoroutineExceptionHandler` on the app scope.
+- **Timeouts and cancellation**: `withTimeoutOrNull` around network calls;
+  `CancellationException` is always re-thrown.
+- **Lifecycle-aware sync**: `ProcessLifecycleOwner` (whole-app foreground state).
+- **DataStore Preferences** for the last sync time.
+- **External scope pattern**: `externalScope.async { … }.await()` for work that must finish
+  even if the screen that started it is destroyed.
+- **Security rules**: authentication, ownership, field validation, and allowed status changes.
+- **MVVM with `UiState`**: Login/Register/Profile ViewModels expose one immutable state object
+  as `StateFlow`; Debug tools uses a `SharedFlow` for one-shot snackbar messages, collected in
+  `LaunchedEffect`.
+
+### Files to read first
+
+1. `data/repository/AuthRepository.kt`
+2. `data/sync/SyncManager.kt`, then `SyncMerge.kt` and `ConnectivityObserver.kt`
+3. `data/remote/ItemRemoteDataSource.kt` (the incremental query) and `ClaimRemoteDataSource.kt`
+4. `data/remote/mapper/RemoteMappers.kt` and `data/remote/dto/RemoteDtos.kt`
+5. `firebase/firestore.rules`
+6. `ui/auth/LoginViewModel.kt` + `LoginScreen.kt` (Route/Screen split), `ui/navigation/RootViewModel.kt`
+7. `di/AppContainer.kt` (how Firestore is configured and everything is wired)
+8. Tests: `SyncMergeTest`, `RemoteMappersTest`, `AuthValidatorTest`
+
+### Likely viva questions
+
+1. **What does "Room is the single source of truth" mean in your sync design?**
+   Screens only ever observe Room. Firestore data reaches the UI only by being written into
+   Room by `SyncManager`. So the UI works the same online and offline, and there's one place
+   that decides what the current data is.
+
+2. **How does a new post get to Firestore?**
+   The repository writes it to Room as `PENDING_UPLOAD`. `SyncManager` observes the count of
+   unsynced rows together with network state (`combine` + `debounce`). When the count is above
+   zero and we're online, it uploads the row and then marks it `SYNCED`, but only if the row
+   didn't change during the upload (`markSynced(id, updatedAt)`).
+
+3. **How do you avoid using up the free Firestore quota?**
+   We never re-read whole collections. The item listener asks only for documents whose server
+   `updatedAt` is after the last one we saw (stored in DataStore), at most 200 at a time. Claims
+   are queried only for the signed-in user. Listeners run only while signed in and in the
+   foreground. Firestore's own disk cache is off, so nothing is stored twice.
+
+4. **Why two timestamps, `updatedAt` and `updatedAtMillis`?**
+   `updatedAt` is set by the server (`FieldValue.serverTimestamp()`, enforced in the rules), so
+   "changed since" queries can't be broken by a phone with a wrong clock. `updatedAtMillis` is the
+   phone's time of the change, which is what Room stores, so last-write-wins compares like with like.
+
+5. **Why don't you delete Firestore documents?**
+   Other phones only ask for "documents changed since X". A deleted document never shows up in
+   that query, so they'd keep the item forever. Writing `deleted: true` is a change they do see,
+   and they remove their local copy.
+
+6. **What happens when the user logs out?**
+   Firebase signs out, `authState` becomes null, and `SyncManager`'s `collectLatest` cancels the
+   session, which removes the listeners. We wait for that null, then clear claims and the cached
+   profile; public items stay. If there are unsynced changes, Profile first shows an `AlertDialog`.
+
+7. **Why does sign-in run in `applicationScope` and not `viewModelScope`?**
+   As soon as sign-in succeeds, the root swaps the login screen for the main app. That clears
+   the login ViewModel and cancels `viewModelScope`. The profile save after sign-in would be cut
+   off. `externalScope.async { }.await()` runs it in the app-wide scope, so it always finishes.
+
+8. **How do the security rules stop a claimant from marking the finder's item as claimed?**
+   Item updates are allowed only for `resource.data.ownerId == request.auth.uid`. The claimant
+   can only create a claim (as themselves, PENDING, on someone else's FOUND item). The finder's own
+   phone sees the claim through its listener and changes the item status itself.
