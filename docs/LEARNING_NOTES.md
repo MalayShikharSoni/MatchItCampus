@@ -259,3 +259,84 @@ examiner might ask, with short answers.
    Item updates are allowed only for `resource.data.ownerId == request.auth.uid`. The claimant
    can only create a claim (as themselves, PENDING, on someone else's FOUND item). The finder's own
    phone sees the claim through its listener and changes the item status itself.
+
+## Phase 4: Matching engine
+
+### Concepts used
+
+- **Text embeddings**: the Universal Sentence Encoder (bundled `.tflite`, run by MediaPipe's
+  Text Embedder) turns a sentence into 100 numbers that capture its meaning. Similar meanings
+  give vectors pointing in similar directions, even with no shared words.
+- **Cosine similarity**, written in plain Kotlin (`VectorMath`) so it's unit-tested.
+- **Keyword fallback**: token Jaccard similarity after normalising and removing stop words,
+  used when an item has no embedding (flagged `usedFallback`).
+- **A pure, explainable scorer** (`MatchScorer`): hard filters, then four component scores
+  (text, category, location, date) combined with named weights (`MatchWeights`).
+- **Measuring before trusting**: on the real model, unrelated pairs also score 0.56–0.90, so
+  a fixed threshold can't work. The ranking was right 10 out of 10 times, so the app shows the
+  **top 5** by score instead of filtering by a threshold.
+- **Haversine distance** (`GeoUtils`) for "how far apart".
+- **Dispatchers**: model inference and scoring on `Dispatchers.Default` (CPU work), Room on its
+  own IO threads. A `Mutex` serialises access to the embedder and to embedding passes.
+- **A Room Flow as a trigger**: `MatchRepository.start()` observes "items that need an
+  embedding" (`map` + `distinctUntilChanged` + `filter`) and reacts by itself, so the item
+  repository and sync don't need to know matching exists (no dependency cycle).
+- **Room techniques**: a guarded `UPDATE … WHERE updatedAt = :updatedAt` (don't store a vector
+  for text that has since changed), a JOIN query returning a POJO with `@Embedded` plus a
+  computed column, `LIMIT`, and a `@Transaction` DAO method that deletes and re-inserts.
+- **Interface for testability**: `Embedder` lets tests use a fake instead of the real model.
+
+### Files to read first
+
+1. `domain/matching/MatchScorer.kt` and `MatchWeights.kt` (the rules and why)
+2. `domain/matching/TextNormalizer.kt`, `KeywordSimilarity.kt`, `VectorMath.kt`
+3. `ml/TextEmbedderHelper.kt` (the only MediaPipe class)
+4. `data/repository/MatchRepository.kt` (embedding lifecycle, storing both directions)
+5. `data/local/dao/MatchDao.kt` (`observeLiveMatches`) and the new queries in `ItemDao.kt`
+6. `domain/matching/SearchScorer.kt` (search ranking, used by the feed in Phase 5)
+7. Tests: `MatchScorerTest` (JVM), `MatchRepositoryTest` and `TextEmbedderHelperTest` (device)
+
+### Likely viva questions
+
+1. **How can "black earphone case" match "JBL earbuds cover" with no words in common?**
+   Each text is turned into an embedding by the on-device model. The model was trained so that
+   sentences with similar meaning get vectors pointing the same way. We compare the vectors
+   with cosine similarity, which doesn't care about exact words.
+
+2. **Why are embeddings not stored in Firestore?**
+   Every phone computes them locally from the same bundled model, so they always match the
+   model in use. It keeps Firestore documents small (fewer bytes on the free plan), and if the
+   model changes, raising `MODEL_VERSION` makes phones recompute instead of mixing vectors from
+   two models.
+
+3. **What happens if the model fails to load?**
+   `TextEmbedderHelper` logs the error once and returns null. The scorer then uses keyword
+   Jaccard similarity instead, and the result is marked `usedFallback`. The app keeps working,
+   just with rougher text matching.
+
+4. **Why did you drop the score threshold?**
+   We measured it on the device. This model gives every pair of short descriptions a high
+   cosine value: true pairs 0.89–0.99, unrelated pairs 0.56–0.90. A fixed cut-off would let
+   unrelated items through, or drop real matches. But for each of 10 lost posts the true found
+   post was ranked first, so we rely on the order and show the top 5.
+
+5. **Why is every pair stored, and in both directions?**
+   The score is symmetric, so one computation serves both owners. Because each item shows its
+   own top 5, a new lost item can be in a found item's top 5 even when it isn't the other way
+   round. Storing every pair that passes the hard filters keeps both lists correct. The filters
+   (opposite type, open, different owner, within 30 days) keep the table small.
+
+6. **When are matches recomputed?**
+   When an item gets a new embedding: after it's created or edited here (saving clears the
+   embedding) or when it arrives from sync without one. `MatchRepository.start()` watches Room
+   for such items. When an item stops being OPEN, the `observeLiveMatches` JOIN hides it at once,
+   with no recompute.
+
+7. **Why write cosine similarity yourself instead of using MediaPipe's?**
+   So the domain code has no Android dependency and runs in JVM unit tests. It's a few lines,
+   and the tests cover identical, orthogonal, opposite and zero vectors.
+
+8. **Why does the embedding update check `updatedAt`?**
+   Embedding takes time. If the user edits the item meanwhile, the vector belongs to the old
+   text. The `WHERE updatedAt = :updatedAt` makes the update do nothing in that case, and the
+   edited row is embedded again on the next pass.
