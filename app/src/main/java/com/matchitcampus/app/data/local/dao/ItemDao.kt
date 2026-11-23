@@ -95,6 +95,22 @@ interface ItemDao {
     @Query("UPDATE items SET syncState = :syncState, updatedAt = :updatedAt WHERE id = :id")
     suspend fun updateSyncState(id: String, syncState: SyncState, updatedAt: Long): Int
 
+    /**
+     * Marks a row SYNCED after its upload, but only if it hasn't changed since the upload
+     * started (same [updatedAt], still PENDING_UPLOAD). If the user edited it meanwhile, it
+     * stays pending and the newer version is pushed next. `updatedAt` isn't touched, because
+     * it's the time of the user's change, not of the sync.
+     *
+     * @return 1 if the row was marked, 0 if it had changed.
+     */
+    @Query(
+        """
+        UPDATE items SET syncState = 'SYNCED'
+        WHERE id = :id AND updatedAt = :updatedAt AND syncState = 'PENDING_UPLOAD'
+        """,
+    )
+    suspend fun markSynced(id: String, updatedAt: Long): Int
+
     @Query("DELETE FROM items WHERE id = :id")
     suspend fun deleteById(id: String)
 

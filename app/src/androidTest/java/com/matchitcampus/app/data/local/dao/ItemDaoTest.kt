@@ -138,6 +138,22 @@ class ItemDaoTest {
     }
 
     @Test
+    fun markSynced_onlyMarksTheVersionThatWasUploaded() = runTest {
+        dao.upsert(testItem("a", createdAt = 100L, syncState = SyncState.PENDING_UPLOAD))
+
+        // The upload started at version 100, but the user edited the row meanwhile (now 200).
+        dao.upsert(testItem("a", createdAt = 200L, syncState = SyncState.PENDING_UPLOAD))
+        assertEquals(0, dao.markSynced("a", updatedAt = 100L))
+        assertEquals(SyncState.PENDING_UPLOAD, dao.getById("a")!!.syncState)
+
+        // Uploading version 200 then marks it, and keeps the user's timestamp.
+        assertEquals(1, dao.markSynced("a", updatedAt = 200L))
+        val row = dao.getById("a")!!
+        assertEquals(SyncState.SYNCED, row.syncState)
+        assertEquals(200L, row.updatedAt)
+    }
+
+    @Test
     fun deleteById_removesTheRow() = runTest {
         dao.upsert(testItem("a"))
 

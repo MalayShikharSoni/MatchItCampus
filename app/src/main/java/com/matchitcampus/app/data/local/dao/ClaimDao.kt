@@ -56,6 +56,15 @@ interface ClaimDao {
     @Query("UPDATE claims SET status = :status, syncState = :syncState, updatedAt = :updatedAt WHERE id = :id")
     suspend fun updateStatus(id: String, status: ClaimStatus, syncState: SyncState, updatedAt: Long): Int
 
+    /** Same idea as [ItemDao.markSynced]: only marks the row if it didn't change during the upload. */
+    @Query(
+        """
+        UPDATE claims SET syncState = 'SYNCED'
+        WHERE id = :id AND updatedAt = :updatedAt AND syncState = 'PENDING_UPLOAD'
+        """,
+    )
+    suspend fun markSynced(id: String, updatedAt: Long): Int
+
     @Query("SELECT COUNT(*) FROM claims WHERE syncState != 'SYNCED'")
     fun observeUnsyncedCount(): Flow<Int>
 

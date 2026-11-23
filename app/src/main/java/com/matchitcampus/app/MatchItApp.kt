@@ -29,5 +29,8 @@ class MatchItApp : Application() {
         // doesn't slow down startup, and it isn't cancelled when a screen closes. On later
         // launches it returns straight away, because the table already has rows.
         container.applicationScope.launch { container.zoneRepository.seedIfEmpty() }
+        // Sync runs for the whole life of the process; it decides by itself when to listen
+        // (signed in and app visible) and when to push (pending changes and online).
+        container.syncManager.start()
     }
 }

@@ -95,6 +95,35 @@ class ClaimRepositoryTest {
         assertEquals(ClaimStatus.CANCELLED, db.claimDao().getById("c2")!!.status)
     }
 
+    @Test
+    fun refreshFoundItemStatus_followsPendingClaims_onTheFindersPhone() = runTest {
+        db.itemDao().upsert(testItem("f1", ownerId = "riya"))
+        db.claimDao().upsert(testClaim("c1", foundItemId = "f1", finderId = "riya"))
+
+        // A pending claim arrived: OPEN -> CLAIM_PENDING, queued for upload.
+        assertTrue(repository.refreshFoundItemStatus("f1", ownerUid = "riya"))
+        val claimed = db.itemDao().getById("f1")!!
+        assertEquals(ItemStatus.CLAIM_PENDING, claimed.status)
+        assertEquals(SyncState.PENDING_UPLOAD, claimed.syncState)
+
+        // Nothing more to change while the claim is still pending.
+        assertFalse(repository.refreshFoundItemStatus("f1", ownerUid = "riya"))
+
+        // Rejecting the only claim puts the item back to OPEN.
+        assertTrue(repository.rejectClaim("c1"))
+        assertEquals(ItemStatus.OPEN, db.itemDao().getById("f1")!!.status)
+    }
+
+    @Test
+    fun refreshFoundItemStatus_neverTouchesSomeoneElsesItem() = runTest {
+        db.itemDao().upsert(testItem("f1", ownerId = "riya"))
+        db.claimDao().upsert(testClaim("c1", foundItemId = "f1", claimantId = "aman", finderId = "riya"))
+
+        // On Aman's (the claimant's) phone, Riya's item must not be written.
+        assertFalse(repository.refreshFoundItemStatus("f1", ownerUid = "aman"))
+        assertEquals(ItemStatus.OPEN, db.itemDao().getById("f1")!!.status)
+    }
+
     private companion object {
         const val NOW = 42_000L
     }

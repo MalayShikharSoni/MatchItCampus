@@ -102,7 +102,43 @@ class ClaimRepository(
      *
      * @return false if the claim doesn't exist or is no longer PENDING.
      */
-    suspend fun rejectClaim(claimId: String): Boolean = closePendingClaim(claimId, ClaimStatus.REJECTED)
+    suspend fun rejectClaim(claimId: String): Boolean = database.withTransaction {
+        val rejected = closePendingClaim(claimId, ClaimStatus.REJECTED)
+        if (rejected) {
+            // Only the finder rejects, so the finder is the item's owner here.
+            val claim = claimDao.getById(claimId)
+            if (claim != null) refreshFoundItemStatus(claim.foundItemId, ownerUid = claim.finderId)
+        }
+        rejected
+    }
+
+    /**
+     * Keeps a found item's status in step with its claims. Runs on the **finder's** phone,
+     * because only the owner may write the item (Phase 3 security rules):
+     * - OPEN with at least one PENDING claim → CLAIM_PENDING
+     * - CLAIM_PENDING with no PENDING claims left (all rejected or cancelled) → OPEN
+     * - RETURNED is final and never changes here.
+     *
+     * `SyncManager` calls it when claims arrive from Firestore, and [rejectClaim] calls it
+     * after a rejection.
+     *
+     * @param ownerUid the signed-in user. Nothing changes unless they own the item.
+     * @return true if the item's status changed.
+     */
+    suspend fun refreshFoundItemStatus(foundItemId: String, ownerUid: String): Boolean =
+        database.withTransaction {
+            val item = itemDao.getById(foundItemId)
+            if (item == null || item.ownerId != ownerUid) return@withTransaction false
+            val hasPending = claimDao.getPendingForFoundItem(foundItemId).isNotEmpty()
+            val newStatus = when {
+                item.status == ItemStatus.OPEN && hasPending -> ItemStatus.CLAIM_PENDING
+                item.status == ItemStatus.CLAIM_PENDING && !hasPending -> ItemStatus.OPEN
+                else -> return@withTransaction false
+            }
+            itemDao.updateStatus(foundItemId, newStatus, SyncState.PENDING_UPLOAD, clock())
+            Log.d(TAG, "Found item $foundItemId: ${item.status} -> $newStatus")
+            true
+        }
 
     /**
      * The claimant withdraws their claim.
