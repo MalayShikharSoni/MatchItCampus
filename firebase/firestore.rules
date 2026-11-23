@@ -1,0 +1,191 @@
+rules_version = '2';
+
+// Security rules for MatchIt Campus (Cloud Firestore).
+//
+// How to deploy: Firebase console -> Firestore Database -> Rules -> paste this whole file
+// -> Publish. The app can't read or write anything until these are published.
+//
+// The app is the only client, but anyone could call Firestore directly with a signed-in
+// account, so these rules are the real protection. The main ideas:
+//   * Nothing is readable or writable without signing in.
+//   * Everyone writes only their own documents. A claimant never edits the finder's item;
+//     each phone updates its own user's documents when it sees a claim change.
+//   * Every write is checked for the expected fields and types, so a bad client can't
+//     store junk that would break other phones.
+//   * `updatedAt` must be the server's own time (request.time), so incremental sync
+//     ("everything changed since X") can't be fooled by a wrong phone clock.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isMe(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function optionalString(value) {
+      return value == null || value is string;
+    }
+
+    function optionalNumber(value) {
+      return value == null || value is number;
+    }
+
+    // ---------------------------------------------------------------------------------
+    // users/{uid}: public profile.
+    // Any signed-in user may read profiles (to show who posted an item).
+    // Only the account itself may create or change its profile. Profiles are never deleted.
+    // ---------------------------------------------------------------------------------
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create, update: if isMe(uid) && validUser(request.resource.data);
+      allow delete: if false;
+
+      function validUser(d) {
+        return d.keys().hasOnly(['name', 'email', 'regNo', 'createdAt'])
+          && d.name is string && d.name.size() > 0 && d.name.size() <= 50
+          && d.email is string
+          && optionalString(d.get('regNo', null))
+          && d.createdAt is int;
+      }
+    }
+
+    // ---------------------------------------------------------------------------------
+    // items/{itemId}: lost and found posts.
+    // Any signed-in user may read items (the feed, matching, the map).
+    // Create: only as yourself (ownerId must be your uid).
+    // Update: only the owner, and ownerId can never change. "Deleting" is an update that
+    //   sets deleted = true (a tombstone), so other phones learn about it.
+    // Delete: only the owner (the app doesn't hard-delete, but the owner may).
+    // ---------------------------------------------------------------------------------
+    match /items/{itemId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && validItem(request.resource.data);
+      allow update: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == resource.data.ownerId
+        && validItem(request.resource.data);
+      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+
+      function validItem(d) {
+        return d.keys().hasAll([
+            'type', 'title', 'description', 'category', 'status', 'zoneId', 'latitude',
+            'longitude', 'addressLine', 'eventDate', 'createdAt', 'updatedAt',
+            'updatedAtMillis', 'ownerId', 'ownerName', 'verificationQuestion', 'hasPhoto',
+            'deleted'])
+          && d.keys().hasOnly([
+            'type', 'title', 'description', 'category', 'status', 'zoneId', 'latitude',
+            'longitude', 'addressLine', 'eventDate', 'createdAt', 'updatedAt',
+            'updatedAtMillis', 'ownerId', 'ownerName', 'verificationQuestion', 'hasPhoto',
+            'deleted', 'color'])
+          && d.type in ['LOST', 'FOUND']
+          && d.status in ['OPEN', 'CLAIM_PENDING', 'RETURNED']
+          && d.category is string
+          && d.title is string && d.title.size() > 0 && d.title.size() <= 100
+          && d.description is string && d.description.size() <= 1000
+          && optionalString(d.zoneId)
+          && optionalNumber(d.latitude)
+          && optionalNumber(d.longitude)
+          && optionalString(d.addressLine)
+          && d.eventDate is int
+          && d.createdAt is int
+          && d.updatedAtMillis is int
+          && d.updatedAt == request.time
+          && d.ownerId is string
+          && d.ownerName is string
+          && optionalString(d.verificationQuestion)
+          && d.hasPhoto is bool
+          && d.deleted is bool
+          && optionalString(d.get('color', null));
+      }
+    }
+
+    // ---------------------------------------------------------------------------------
+    // itemPhotos/{itemId}: one compressed JPEG per item, kept apart from items so that
+    // feed queries never download image bytes.
+    // Read: any signed-in user. Write: only the owner of the item. The item must already
+    // exist in Firestore (upload the item first, then its photo). Max 900 KB.
+    // ---------------------------------------------------------------------------------
+    match /itemPhotos/{itemId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && get(/databases/$(database)/documents/items/$(itemId)).data.ownerId == request.auth.uid
+        && validPhoto(request.resource.data);
+      allow update: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == request.auth.uid
+        && validPhoto(request.resource.data);
+      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+
+      function validPhoto(d) {
+        return d.keys().hasOnly(['ownerId', 'data', 'updatedAt'])
+          && d.data is bytes && d.data.size() <= 900 * 1024
+          && d.updatedAt == request.time;
+      }
+    }
+
+    // ---------------------------------------------------------------------------------
+    // claims/{claimId}: "this found item is mine".
+    // Read: only the claimant and the finder (the app queries by claimantId or finderId).
+    // Create: only as yourself, never on your own item, always PENDING, and finderId must
+    //   really be the owner of a FOUND item (checked by reading that item).
+    // Update: only the status may change, and only from PENDING:
+    //   - the finder may set ACCEPTED or REJECTED,
+    //   - the claimant may set CANCELLED.
+    //   Nothing else on the claim may change. Claims are never deleted.
+    // ---------------------------------------------------------------------------------
+    match /claims/{claimId} {
+      allow read: if signedIn()
+        && (resource.data.claimantId == request.auth.uid || resource.data.finderId == request.auth.uid);
+
+      allow create: if signedIn()
+        && request.resource.data.claimantId == request.auth.uid
+        && request.resource.data.finderId != request.auth.uid
+        && request.resource.data.status == 'PENDING'
+        && foundItemOwnedBy(request.resource.data.foundItemId, request.resource.data.finderId)
+        && validClaim(request.resource.data);
+
+      allow update: if signedIn()
+        && validClaim(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['status', 'updatedAt', 'updatedAtMillis'])
+        && resource.data.status == 'PENDING'
+        && (
+          (request.auth.uid == resource.data.finderId
+            && request.resource.data.status in ['ACCEPTED', 'REJECTED'])
+          || (request.auth.uid == resource.data.claimantId
+            && request.resource.data.status == 'CANCELLED')
+        );
+
+      allow delete: if false;
+
+      function foundItemOwnedBy(itemId, ownerId) {
+        let item = get(/databases/$(database)/documents/items/$(itemId)).data;
+        return item.ownerId == ownerId && item.type == 'FOUND';
+      }
+
+      function validClaim(d) {
+        return d.keys().hasOnly([
+            'foundItemId', 'lostItemId', 'claimantId', 'claimantName', 'finderId', 'answer',
+            'message', 'status', 'createdAt', 'updatedAt', 'updatedAtMillis'])
+          && d.foundItemId is string
+          && optionalString(d.get('lostItemId', null))
+          && d.claimantId is string
+          && d.claimantName is string
+          && d.finderId is string
+          && d.answer is string && d.answer.size() <= 500
+          && d.message is string && d.message.size() <= 1000
+          && d.status in ['PENDING', 'ACCEPTED', 'REJECTED', 'CANCELLED']
+          && d.createdAt is int
+          && d.updatedAtMillis is int
+          && d.updatedAt == request.time;
+      }
+    }
+  }
+}
