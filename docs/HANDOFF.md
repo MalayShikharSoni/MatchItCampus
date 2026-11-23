@@ -14,7 +14,7 @@ From Phase 2 on, all work is committed and pushed directly to `main` (see the
 | 1 Scaffold | Dev A (MalayShikharSoni) | `feature/01-scaffold` (merged, last phase branch) | [#1](https://github.com/MalayShikharSoni/MatchItCampus/pull/1) | yes |
 | 2 Room data layer | Dev B (anugyajais) | `main` | — | yes |
 | 3 Firebase + sync | Dev A (MalayShikharSoni) | `main` | — | yes |
-| 4 Matching engine | Dev B | `main` | — | |
+| 4 Matching engine | Dev B (anugyajais) | `main` | — | yes |
 | 5 Core UI | Dev A | `main` | — | |
 | 6 Location + map | Dev B | `main` | — | |
 | 7 Polish + migration | Dev A | `main` | — | |
@@ -22,7 +22,7 @@ From Phase 2 on, all work is committed and pushed directly to `main` (see the
 
 ## 2. Current state
 
-**What works (end of Phase 3):**
+**What works (end of Phase 4):**
 - The project builds (`./gradlew assembleDebug`) and unit tests pass (`./gradlew testDebugUnitTest`).
 - Package / applicationId `com.matchitcampus.app`, minSdk 26, compile/target SDK 37.
 - `MatchItApp` (Application) builds an `AppContainer` holding the app-wide `applicationScope`.
@@ -34,7 +34,8 @@ From Phase 2 on, all work is committed and pushed directly to `main` (see the
     (receives `itemId`) and Debug tools (debug builds only). All screens are placeholders.
   - Bottom `NavigationBar` under 600 dp width, side `NavigationRail` from 600 dp
     (`navigationSuiteTypeFor`, unit-tested).
-- MediaPipe model `app/src/main/assets/universal_sentence_encoder.tflite` is committed (not used yet).
+- MediaPipe model `app/src/main/assets/universal_sentence_encoder.tflite` is committed and used by
+  `ml/TextEmbedderHelper` (Phase 4).
 - **Room database v1** (`data/local/`): tables `items`, `campus_zones`, `claims`, `users`, `matches`;
   DAOs (Flow for observed queries, suspend for writes, `@Upsert`); relations `ItemWithZone` and
   `ClaimWithItems`; `Converters` (enums by name, `FloatArray` ↔ little-endian BLOB). The schema is
@@ -62,7 +63,23 @@ From Phase 2 on, all work is committed and pushed directly to `main` (see the
   reaches the Firestore console before the real Post screen exists).
 - **Security rules:** `firebase/firestore.rules`. Must be pasted into the Firebase console
   (Firestore → Rules → Publish) before anything can sync.
-- Tests: 44 JVM unit tests and 35 instrumented tests (both suites green on 2026-11-23).
+- **Matching engine (Phase 4):**
+  - `domain/matching/` is plain Kotlin (JVM-tested): `TextNormalizer`, `VectorMath` (cosine),
+    `KeywordSimilarity` (Jaccard + query coverage), `MatchScorer` (hard filters + weighted score),
+    `MatchWeights` (text 0.60, category 0.15, location 0.15, date 0.10, top 5) and `SearchScorer`
+    (feed search ranking). `location/GeoUtils` has the haversine distance.
+  - `ml/TextEmbedderHelper` is the only class that imports MediaPipe, behind the `Embedder`
+    interface. It loads the model lazily, L2-normalises, doesn't quantise, runs on
+    `Dispatchers.Default` and returns null if the model can't load (matching then uses keywords).
+  - `data/repository/MatchRepository` is built in `AppContainer` (`by lazy`) and started in
+    `MatchItApp.onCreate`. It watches Room for items with no embedding of the current model
+    version (`ItemDao.observeNeedingEmbedding`), embeds them, then recomputes their matches
+    against the open items of the opposite type and stores every pair **in both directions**.
+    `observeMatches(itemId)` gives the best 5 live matches (Room Flow); `search(query, type)` ranks
+    a feed tab. Logcat: `tag:MatchIt/MatchRepository` (per-component scores of the best matches).
+  - Nothing in the UI shows matches or search yet (Phase 5).
+- Tests: 95 JVM unit tests and 54 instrumented tests, including the real-model sanity test in
+  `ml/TextEmbedderHelperTest` (both suites green on 2026-11-24, instrumented on AVD `Pixel_9_Pro`).
 
 **How to run:** open the project root in Android Studio, make sure `app/google-services.json`
 exists (see section 5), then Run ▶ on an emulator or device.
@@ -135,7 +152,8 @@ exists (see section 5), then Run ▶ on an emulator or device.
   `acceptClaim` (one `withTransaction`: claim ACCEPTED, found item RETURNED, other pending claims
   REJECTED), `rejectClaim` and `cancelClaim` (only while PENDING), and `clearAll` for logout.
   The claimant's linked lost item is **not** changed here, because it's the claimant's document.
-- **Phase 2, no `UserRepository` and no `MatchRepository` yet.** `UserDao` and `MatchDao` exist
+- **Phase 2, no `UserRepository` and no `MatchRepository` yet** (the `MatchRepository` part is
+  **superseded** by Phase 4, which adds it). `UserDao` and `MatchDao` exist
   for Phase 3 (AuthRepository) and Phase 4 (MatchRepository).
 - **Phase 2, repositories take a `clock: () -> Long`** (and `ZoneRepository` takes a
   `readSeedJson: () -> String`), so tests can fix the time and the file contents.
@@ -183,6 +201,30 @@ exists (see section 5), then Run ▶ on an emulator or device.
   Firebase. The validation rules are unit-tested (`AuthValidatorTest`). Phase 8's required ViewModel
   tests are for PostItem and Home.
 
+- **Phase 4, MediaPipe `tasks-text` 1.2.3** (checked on Google Maven 2026-11-24), newer than the
+  1.2.2 noted in Phase 0. The API matched the docs (`TextEmbedder.createFromOptions`,
+  `setL2Normalize`, `setQuantize`).
+- **Phase 4, no fixed score threshold (deviation from the brief's plan).** Measured on the real
+  model, unrelated pairs of short descriptions scored 0.56–0.90 cosine (avg 0.73) and true pairs
+  0.89–0.99, so no cut-off separates them. The ranking was right for all 10 test items, so each
+  item shows its best `MatchWeights.maxResults` (5) instead. `SearchScorer` likewise returns every
+  item, ordered, with a +0.3 bonus for an exact substring hit.
+- **Phase 4, hard filters in `MatchScorer`:** opposite types, both OPEN, different owners, found no
+  more than 1 day before lost (grace for guessed dates), at most 30 days apart. Location score is 1
+  in the same zone, otherwise falls to 0 over 1 km, 0.5 if unknown. Date score falls to 0 at 14 days.
+  Category: 1 same, 0.3 if either is OTHER, else 0. Every component is symmetric.
+- **Phase 4, embeddings stay local** (never in Firestore) and carry `embeddingVersion`
+  (`TextEmbedderHelper.MODEL_VERSION`). A vector from another version counts as missing, so
+  replacing the model only needs the constant raised. `updateEmbedding` only writes if the row's
+  `updatedAt` is unchanged, so an edit during embedding isn't overwritten with a stale vector.
+- **Phase 4, `MatchRepository` observes Room instead of being called** by `ItemRepository` or
+  `SyncManager`, which keeps them free of a dependency on it (no cycle). This replaces the Phase 3
+  note's idea of calling `ensureEmbeddings()` after `applyItemPage` / local saves.
+- **Phase 4, all passing pairs are cached, not just the top 5,** because a pair can be in one
+  item's top 5 but not the other's. `observeLiveMatches` joins `items` so claimed/returned/deleted
+  items drop out without recomputing, and works out `usedFallback` in SQL, so the v1 `matches`
+  table needed no new column (DB stays v1, no migration).
+
 ### Library versions
 
 Checked on Google Maven / Maven Central on 2026-11-05. "In use" means it's already in
@@ -208,7 +250,7 @@ MapLibre Compose, which is pre-1.0.
 | Firebase BoM | 35.2.0 (Auth 25.0.0, Firestore 27.2.0) | in use (re-checked 2026-11-23) |
 | kotlinx-coroutines-play-services | 1.11.0 | in use (`Task.await()`) |
 | Lifecycle process (`ProcessLifecycleOwner`) | 2.11.0 | in use |
-| MediaPipe tasks-text | 1.2.2 | Phase 4 |
+| MediaPipe tasks-text | 1.2.3 (re-checked 2026-11-24) | in use (Phase 4) |
 | Play Services Location | 21.4.0 | Phase 6 |
 | MapLibre Compose | 0.20.0 (minSdk 24) | Phase 6 |
 | Coil 3 (`io.coil-kt.coil3:coil-compose`) | 3.6.3 | Phase 5 |
@@ -233,6 +275,12 @@ MapLibre Compose, which is pre-1.0.
   winner. It's acceptable because each document normally has a single writer (its owner).
 - If someone logs out with unsynced changes and another account logs in on the same phone, the
   old rows stay `PENDING_UPLOAD` (they're skipped, because the rules would reject them).
+- Matches aren't recomputed when a remote change keeps the text (e.g. a moved pin or a new date),
+  because the embedding is kept. The item detail screen (Phase 5) should call
+  `MatchRepository.recomputeMatchesFor(itemId)` when it opens (cheap: one item vs. the open pool).
+- `MatchWeights` are reasoned starting values, not tuned. Revisit with the Phase 7 demo data.
+- The real-model sanity test needs a device/emulator (`./gradlew connectedDebugAndroidTest`),
+  because MediaPipe runs native code. The JVM tests use a fake `Embedder`.
 
 ## 5. Per-laptop setup notes
 
@@ -251,16 +299,19 @@ Things each laptop needs that are **not** in the repo:
 
 ## 6. Next phase
 
-**Phase 4: Matching engine**, driven by **Dev B**, working directly on `main`.
-- `git checkout main && git pull` first. Phase 3 is on `main`.
-- Before testing sync with real accounts, the rules in `firebase/firestore.rules` must be
-  published in the Firebase console (Dev A does this).
-- Re-check MediaPipe `tasks-text` (1.2.2 on 2026-11-05) before adding it. The model is already in
-  `app/src/main/assets/universal_sentence_encoder.tflite`.
-- Embeddings are local only. Remote items arrive in `SyncManager.applyItemPage` with `embedding`
-  kept when the text is unchanged and null otherwise. `MatchRepository.ensureEmbeddings()` should
-  fill the nulls: call it after `applyItemPage` and after local saves (or observe items with a
-  null embedding), and recompute matches for the affected items.
-- `ItemRepository.saveItem` clears the embedding on every save (Phase 2 decision). Status-only
-  changes use `updateStatus` and keep it.
-- `AppContainer` is where `TextEmbedderHelper` and `MatchRepository` should be built (`by lazy`).
+**Phase 5: Core UI**, driven by **Dev A** (MalayShikharSoni), working directly on `main`.
+- `git checkout main && git pull` first. Phase 4 is on `main`.
+- Re-check Coil 3 (3.6.3 on 2026-11-05) before adding it for photos.
+- Data the screens can use now (all from `AppContainer`):
+  - Feed: `ItemRepository` Flows; search with `matchRepository.search(query, type)` from a
+    debounced query Flow (`debounce` + `mapLatest`). An empty query returns an empty list, so show
+    the normal feed then.
+  - Item detail: `matchRepository.observeMatches(itemId)` (best 5, `MatchResult` with per-component
+    scores, `distanceMeters`, `daysApart`, `usedFallback`). Call `recomputeMatchesFor(itemId)` on open
+    (see section 4). New posts are embedded and matched automatically a moment after saving, so the
+    list may be empty for a second; the Flow fills it in.
+  - Claims: the rules are already in `ClaimRepository` (Phase 2/3 decisions).
+- Collect `SyncManager.events` and show a snackbar (section 4).
+- Photo upload: upload the item document first, then `itemPhotos/{itemId}` (rules require it).
+- Phase 8's required ViewModel tests are for PostItem and Home, so keep those ViewModels testable
+  (pass repositories in through factories, no Android types in state).
