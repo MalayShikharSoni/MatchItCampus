@@ -161,4 +161,31 @@ class ItemDaoTest {
 
         assertNull(dao.getById("a"))
     }
+
+    @Test
+    fun getNeedingEmbedding_findsMissingAndOutdatedVectors_butNotDeletedRows() = runTest {
+        dao.upsert(testItem("none"))
+        dao.upsert(testItem("current", embedding = floatArrayOf(1f)))
+        dao.upsert(testItem("old", embedding = floatArrayOf(1f)).copy(embeddingVersion = 0))
+        dao.upsert(testItem("deleted", syncState = SyncState.PENDING_DELETE))
+
+        assertEquals(setOf("none", "old"), dao.getNeedingEmbedding(version = 1).map { it.id }.toSet())
+        assertEquals(setOf("none", "old"), dao.observeNeedingEmbedding(version = 1).first().map { it.id }.toSet())
+    }
+
+    @Test
+    fun updateEmbedding_onlyIfTheRowIsUnchanged_andLeavesSyncBookkeepingAlone() = runTest {
+        dao.upsert(testItem("a", createdAt = 100L, syncState = SyncState.SYNCED))
+
+        // The text was read at version 50, but the row is now at 100: the vector is stale.
+        assertEquals(0, dao.updateEmbedding("a", floatArrayOf(1f, 2f), version = 1, updatedAt = 50L))
+        assertNull(dao.getById("a")!!.embedding)
+
+        assertEquals(1, dao.updateEmbedding("a", floatArrayOf(1f, 2f), version = 1, updatedAt = 100L))
+        val row = dao.getById("a")!!
+        assertArrayEquals(floatArrayOf(1f, 2f), row.embedding, 0f)
+        assertEquals(1, row.embeddingVersion)
+        assertEquals(SyncState.SYNCED, row.syncState)
+        assertEquals(100L, row.updatedAt)
+    }
 }
