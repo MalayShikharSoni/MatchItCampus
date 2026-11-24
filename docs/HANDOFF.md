@@ -16,13 +16,13 @@ From Phase 2 on, all work is committed and pushed directly to `main` (see the
 | 3 Firebase + sync | Dev A (MalayShikharSoni) | `main` | — | yes |
 | 4 Matching engine | Dev B (anugyajais) | `main` | — | yes |
 | 5 Core UI | Dev A (MalayShikharSoni) | `main` | — | yes |
-| 6 Location + map | Dev B | `main` | — | |
+| 6 Location + map | Dev B (anugyajais) | `main` | — | yes |
 | 7 Polish + migration | Dev A | `main` | — | |
 | 8 Tests + docs | Dev B | `main` | — | |
 
 ## 2. Current state
 
-**What works (end of Phase 5):**
+**What works (end of Phase 6):**
 - The project builds (`./gradlew assembleDebug`) and unit tests pass (`./gradlew testDebugUnitTest`).
 - Package / applicationId `com.matchitcampus.app`, minSdk 26, compile/target SDK 37.
 - `MatchItApp` (Application) builds an `AppContainer` holding the app-wide `applicationScope`.
@@ -31,7 +31,7 @@ From Phase 2 on, all work is committed and pushed directly to `main` (see the
 - Navigation shell with type-safe routes (`ui/navigation/Routes.kt`):
   - Signed out: real Login and Register screens (Firebase Auth email/password, Phase 3).
   - Signed in: Home, Map, My posts, Claims, Profile tabs, plus Post item, Item detail
-    (receives `itemId`) and Debug tools (debug builds only). Only Map is still a placeholder (Phase 6).
+    (receives `itemId`), Pin picker, Debug tools and Zone Capture (debug builds only). No placeholders left.
   - Bottom `NavigationBar` under 600 dp width, side `NavigationRail` from 600 dp
     (`navigationSuiteTypeFor`, unit-tested).
 - MediaPipe model `app/src/main/assets/universal_sentence_encoder.tflite` is committed and used by
@@ -77,7 +77,8 @@ From Phase 2 on, all work is committed and pushed directly to `main` (see the
     `observeMatches(itemId)` gives the best 5 live matches (Room Flow); `search(query, type)` ranks
     a feed tab. Logcat: `tag:MatchIt/MatchRepository` (per-component scores of the best matches).
   - The UI shows matches and search from Phase 5 on.
-- Tests: 126 JVM unit tests (Phase 5 added feed filtering, form validation, match explanations,
+- Tests: 148 JVM unit tests after Phase 6 (it added `ZoneResolver`, `MapGeoJson`, `ItemPositions`,
+  "Near me" sorting and zone JSON export tests; all green on 2026-11-24). Previously 126 JVM unit tests (Phase 5 added feed filtering, form validation, match explanations,
   photo sizing, formatters and My posts grouping) and 54 instrumented tests, including the
   real-model sanity test in `ml/TextEmbedderHelperTest` (both suites green on 2026-11-24, instrumented
   on AVD `Pixel_10_Pro`).
@@ -112,6 +113,30 @@ From Phase 2 on, all work is committed and pushed directly to `main` (see the
   the breakdown, claims it, Riya gets the badge and accepts, both items RETURNED), semantic search
   reordering, editing, deleting, a photo uploaded by one account and downloaded on a fresh install by
   the other, and the Post draft surviving process death.
+- **Location and map (Phase 6).**
+  - `location/LocationClient`: one-shot fused fix (`getCurrentLocation`, high accuracy with fine
+    permission, balanced with coarse only, `withTimeoutOrNull`, 10 s) and `locationUpdates()`
+    (`callbackFlow`, removed in `awaitClose`).
+  - `location/GeocoderClient`: reverse and forward geocoding, listener API on 33+, blocking call on
+    `Dispatchers.IO` below; handles `Geocoder.isPresent() == false` and empty results.
+  - `location/ZoneResolver.nearestZone`: the closest **non-placeholder** zone whose radius contains
+    the point. `location/ItemPositions` (`mapPosition`, `distanceFrom`) and `location/MapGeoJson`
+    (item points, zone polygons) are pure and unit-tested.
+  - `ui/components/PermissionGate` (`LocationPermissionGate`): asks for fine + coarse together,
+    rationale `AlertDialog`, "Open settings" after a permanent denial, approximate-only handled.
+  - **Post item:** "Use my location" (fix → address line → suggested zone) and "Pick on map"
+    (`Routes.PinPicker`: fixed centre pin, drag or tap, search a place; the result comes back
+    through the previous entry's `SavedStateHandle`). Lat/lng/address are in the saved draft.
+  - **Map tab** (`ui/map/`): OpenFreeMap liberty style centred on campus, Lost/Found dots in two
+    colours (`CircleLayer` over a GeoJSON source), real zones as metre-accurate polygons, tap a dot
+    for an `ItemCard` bottom sheet that opens the item, live "my location" started/stopped by a
+    `DisposableEffect` + lifecycle observer, attribution always visible as text.
+  - **Item detail:** a non-interactive mini map with one marker when the item has a position.
+  - **Home "Near me"** filter chip: one fix, then `FeedLogic` sorts by haversine distance (pin, else
+    real zone centre; unknown last). A search ranking still wins over distance.
+  - **Zone Capture** (Debug tools): tap a zone → "Set to my current location" (precise only) →
+    Room row updated with `isPlaceholder = false`; "Copy JSON" puts all zones, in the
+    `campus_zones.json` format (with `_readme`), on the clipboard.
 
 **How to run:** open the project root in Android Studio, make sure `app/google-services.json`
 exists (see section 5), then Run ▶ on an emulator or device.
@@ -287,7 +312,27 @@ exists (see section 5), then Run ▶ on an emulator or device.
   watcher's scope and closed the database straight away, so a query still running crashed the
   test process on `Pixel_10_Pro` (only 41 of 54 tests ran). It now uses `cancelAndJoin()` first.
 - **Phase 5, Item detail's mini map is left for Phase 6** (MapLibre is added there); the screen shows
-  the zone name and address line for now.
+  the zone name and address line for now. **Superseded** by Phase 6 (mini map added).
+
+- **Phase 6, Play Services Location 21.4.0 and MapLibre Compose 0.20.0** (both re-checked
+  2026-11-24, unchanged since Phase 0). Map content uses MapLibre Compose's GeoJSON sources with
+  `CircleLayer` / `FillLayer` / `LineLayer` composables rather than marker composables.
+- **Phase 6, zones are drawn as 48-point polygons** of their real radius in metres, because a
+  `CircleLayer` radius is in screen pixels and wouldn't scale with zoom.
+- **Phase 6, placeholder zones are hidden on the maps and never used for positions.** They all sit
+  at the made-up centre, so an item with only a placeholder zone and no pin isn't drawn (the Map tab
+  shows a count of such items) and sorts last in "Near me".
+- **Phase 6, a suggested zone replaces the chosen one only if a real zone contains the spot**;
+  otherwise the user's zone is kept. While every zone is a placeholder, nothing is suggested.
+- **Phase 6, the pin picker returns its result through `SavedStateHandle`** of the previous back
+  stack entry (a `DoubleArray`), which the Post screen consumes once and clears.
+- **Phase 6, "Near me" uses one location fix** when the chip is turned on, not live updates, so the
+  list doesn't jump while scrolling.
+- **Phase 6, Zone Capture refuses approximate location** (a zone centre must be precise) and only
+  changes Room. Captured zones reach other phones only by pasting the exported JSON into
+  `campus_zones.json` and reinstalling (seeding only runs on an empty table, see Phase 2).
+- **Phase 6, attribution is plain text** on every map (`map_attribution` string), not MapLibre's
+  "i" button, so it's always visible.
 
 ### Library versions
 
@@ -315,8 +360,8 @@ MapLibre Compose, which is pre-1.0.
 | kotlinx-coroutines-play-services | 1.11.0 | in use (`Task.await()`) |
 | Lifecycle process (`ProcessLifecycleOwner`) | 2.11.0 | in use |
 | MediaPipe tasks-text | 1.2.3 (re-checked 2026-11-24) | in use (Phase 4) |
-| Play Services Location | 21.4.0 | Phase 6 |
-| MapLibre Compose | 0.20.0 (minSdk 24) | Phase 6 |
+| Play Services Location | 21.4.0 (re-checked 2026-11-24) | in use (Phase 6) |
+| MapLibre Compose | 0.20.0 (minSdk 24, re-checked 2026-11-24) | in use (Phase 6) |
 | Coil 3 (`io.coil-kt.coil3:coil-compose`) | 3.6.3 (re-checked 2026-11-24) | in use (Phase 5) |
 | Turbine | 1.2.1 | in use (androidTest) |
 | JUnit 4 / AndroidX test JUnit / Espresso | 4.13.2 / 1.3.0 / 3.7.0 | in use |
@@ -329,7 +374,12 @@ MapLibre Compose, which is pre-1.0.
 - No tablet emulator exists on Dev A's laptop yet. Create one before Phase 7 (two-pane layout).
 - The launcher icon is still the Android Studio default.
 - `ZoneSeedParserTest.realSeedFile_isStillAllPlaceholders` must be updated once real zone
-  coordinates are captured (Phase 6).
+  coordinates are captured. The Zone Capture tool exists since Phase 6; walking the campus and
+  pasting the exported JSON into `campus_zones.json` is still to do (Dev A/Dev B by hand).
+- **Phase 6 wasn't tried on an emulator or device in this session's checkpoint** (only build + JVM
+  tests). Check the Map tab, "Use my location", the pin picker and Zone Capture at the start of
+  Phase 7. On an emulator, set a location under Extended controls → Location first.
+- The maps need the network for tiles (OpenFreeMap); offline they show the grey background only.
 - ~~Deleting an item that was never uploaded still waits for sync.~~ Resolved in Phase 3 (see decisions).
 - ~~`SyncManager.events` is emitted but not shown yet.~~ Resolved in Phase 5 (snackbar in `MainShell`).
 - ~~Photos aren't uploaded yet.~~ Resolved in Phase 5 (see decisions).
@@ -377,21 +427,15 @@ Things each laptop needs that are **not** in the repo:
 
 ## 6. Next phase
 
-**Phase 6: Location and map**, driven by **Dev B**, working directly on `main`.
-- `git checkout main && git pull` first. Phase 5 is on `main`.
-- Re-check MapLibre Compose (0.20.0 on 2026-11-05, pre-1.0) and Play Services Location before adding them.
-- Where Phase 6 plugs into the Phase 5 UI:
-  - **Post screen** (`ui/post/PostItemScreen.kt`, `PostItemViewModel`): the location section is just the
-    zone field today. Add "Use my location" (one-shot fused location → reverse geocode →
-    `ZoneResolver.nearestZone` suggests a zone) and the pin picker. `PostItemForm` needs
-    `latitude`/`longitude`/`addressLine` fields (and matching `SavedStateHandle` keys);
-    `buildItem()` currently leaves them null for new items and keeps them on edit.
-  - **Item detail** (`ui/detail/ItemDetailScreen.kt`, `ItemHeader`): add the mini map with one marker.
-  - **Map tab** (`ui/map/MapScreen.kt`) is still a `PlaceholderScreen`. `ItemRepository.observeOpenItems()`
-    gives the markers; tapping one can reuse `ItemCard` in a bottom sheet and navigate with
-    `Routes.ItemDetail`.
-  - **"Near me" sort** belongs in `HomeViewModel` / `FeedLogic.visibleItems` (add a sort option to
-    `FeedFilters`), with distances from `GeoUtils.haversineMeters`.
-  - **Zone Capture** goes in Debug tools (`ui/debug/`), next to "Throw test exception".
-  - `ZonePickerSheet` (`ui/components/`) is reusable. `PermissionGate` from the brief's component list
-    isn't built yet: it belongs with the location permission flow.
+**Phase 7: Polish + migration**, driven by **Dev A**, working directly on `main`.
+- `git checkout main && git pull` first. Phase 6 is on `main`.
+- First, try Phase 6 on the emulator (see Known issues).
+- Migration v2: add nullable `color` to `items` with an explicit `Migration(1, 2)` and a
+  `MigrationTestHelper` test. The rules already allow `color` (Phase 3). Add it to the Post form,
+  `TextNormalizer.forEmbedding`, the Firestore mappers and the detail screen. Adding colour changes
+  the embedded text, so existing rows need re-embedding (raising `TextEmbedderHelper.MODEL_VERSION`
+  is the simplest way to trigger it).
+- Two-pane Home on expanded width (needs a tablet emulator on Dev A's laptop), animations and a
+  performance pass, and the debug "Seed demo data" (items can now carry pins: give them real
+  coordinates near campus so they show on the map).
+- Optional from the Known issues: hide the bottom bar on non-tab screens, ABI splits for release.
