@@ -12,14 +12,17 @@ import com.google.firebase.firestore.firestore
 import com.google.firebase.firestore.firestoreSettings
 import com.google.firebase.firestore.memoryCacheSettings
 import com.matchitcampus.app.data.local.AppDatabase
+import com.matchitcampus.app.data.photo.PhotoStore
 import com.matchitcampus.app.data.prefs.SyncPreferences
 import com.matchitcampus.app.data.remote.ClaimRemoteDataSource
 import com.matchitcampus.app.data.remote.ItemRemoteDataSource
+import com.matchitcampus.app.data.remote.PhotoRemoteDataSource
 import com.matchitcampus.app.data.remote.UserRemoteDataSource
 import com.matchitcampus.app.data.repository.AuthRepository
 import com.matchitcampus.app.data.repository.ClaimRepository
 import com.matchitcampus.app.data.repository.ItemRepository
 import com.matchitcampus.app.data.repository.MatchRepository
+import com.matchitcampus.app.data.repository.PhotoRepository
 import com.matchitcampus.app.data.repository.ZoneRepository
 import com.matchitcampus.app.data.sync.ConnectivityObserver
 import com.matchitcampus.app.data.sync.SyncManager
@@ -135,6 +138,16 @@ class AppContainer(context: Context) {
             .map { it.isAtLeast(Lifecycle.State.STARTED) }
             .distinctUntilChanged()
 
+    /** Item photos: compressed files in filesDir plus their copies in `itemPhotos/` (Phase 5). */
+    val photoRepository: PhotoRepository by lazy {
+        PhotoRepository(
+            photoStore = PhotoStore(applicationContext),
+            photoRemote = PhotoRemoteDataSource(firestore),
+            itemDao = database.itemDao(),
+            syncPreferences = syncPreferences,
+        )
+    }
+
     val syncManager: SyncManager by lazy {
         SyncManager(
             authState = authRepository.authState,
@@ -143,6 +156,7 @@ class AppContainer(context: Context) {
             claimRepository = claimRepository,
             itemRemote = ItemRemoteDataSource(firestore),
             claimRemote = ClaimRemoteDataSource(firestore),
+            photoRepository = photoRepository,
             syncPreferences = syncPreferences,
             connectivity = connectivityObserver,
             appInForeground = appInForeground,

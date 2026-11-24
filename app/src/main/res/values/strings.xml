@@ -128,4 +128,46 @@
     <string name="home_empty_body">Pull down to check for new posts, or post one yourself.</string>
     <string name="home_empty_filtered_title">Nothing matches</string>
     <string name="home_empty_filtered_body">Try other words or fewer filters.</string>
+
+
+    <!-- Post item (Phase 5) -->
+    <string name="title_edit_item">Edit item</string>
+    <string name="post_type_lost">I lost something</string>
+    <string name="post_type_found">I found something</string>
+    <string name="field_title">Title</string>
+    <string name="field_title_hint">e.g. Black earphone case</string>
+    <string name="field_description">Description</string>
+    <string name="field_description_hint">Colour, brand, stickers, what\'s insideâ€¦</string>
+    <string name="field_category">Category</string>
+    <string name="field_date">Date</string>
+    <string name="field_date_lost">Date lost</string>
+    <string name="field_date_found">Date found</string>
+    <string name="field_zone">Where on campus</string>
+    <string name="field_question">Verification question</string>
+    <string name="field_question_hint">e.g. What sticker is on it?</string>
+    <string name="field_question_help">Ask something only the owner would know. Claimants must answer it.</string>
+    <string name="action_add_photo">Add a photo</string>
+    <string name="action_change_photo">Change photo</string>
+    <string name="action_remove_photo">Remove photo</string>
+    <string name="action_save_changes">Save changes</string>
+    <string name="action_ok">OK</string>
+    <string name="post_photo_processing">Preparing photoâ€¦</string>
+    <string name="post_photo_description">Photo of the item</string>
+    <string name="post_photo_kept">This item has a photo. It stays unless you remove it.</string>
+    <string name="post_still_needed">Still needed: %1$s</string>
+    <string name="post_error_title_required">Give it a short title</string>
+    <string name="post_error_title_short">Use at least 3 characters</string>
+    <string name="post_error_title_long">Keep it under 60 characters</string>
+    <string name="post_error_description_required">Describe it so the owner or finder can recognise it</string>
+    <string name="post_error_description_long">Keep it under 500 characters</string>
+    <string name="post_error_category_required">Pick a category</string>
+    <string name="post_error_date_future">The date can\'t be in the future</string>
+    <string name="post_error_zone_required">Pick where on campus</string>
+    <string name="post_error_question_required">Add a question only the owner can answer</string>
+    <string name="post_error_question_long">Keep it under 120 characters</string>
+    <string name="post_error_photo_too_large">That photo is too large, even after shrinking. Try another one.</string>
+    <string name="post_error_photo_unreadable">Couldn\'t open that photo. Try another one.</string>
+    <string name="post_error_signed_out">You\'re signed out. Log in again to post.</string>
+    <string name="post_error_item_gone">This item no longer exists.</string>
+    <string name="post_error_save_failed">Couldn\'t save the item. Please try again.</string>
 </resources>

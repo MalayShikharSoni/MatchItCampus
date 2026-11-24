@@ -26,7 +26,8 @@ object Routes {
     @Serializable data object Profile
 
     // --- Main graph: screens opened from a tab ---
-    @Serializable data object PostItem
+    /** Post a new item, or edit one of mine when [editItemId] is set. */
+    @Serializable data class PostItem(val editItemId: String? = null)
     @Serializable data class ItemDetail(val itemId: String)
 
     /** Only registered in debug builds (see [MainNavHost]). */

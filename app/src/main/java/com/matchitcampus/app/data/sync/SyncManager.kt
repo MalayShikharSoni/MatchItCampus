@@ -12,6 +12,7 @@ import com.matchitcampus.app.data.remote.mapper.toDto
 import com.matchitcampus.app.data.remote.mapper.toEntity
 import com.matchitcampus.app.data.repository.ClaimRepository
 import com.matchitcampus.app.data.repository.ItemRepository
+import com.matchitcampus.app.data.repository.PhotoRepository
 import com.matchitcampus.app.domain.model.AuthUser
 import com.matchitcampus.app.domain.model.ClaimStatus
 import com.matchitcampus.app.domain.model.ItemStatus
@@ -57,6 +58,9 @@ private const val TAG = "MatchIt/SyncManager"
  * - items changed since the last sync (an incremental query, see [ItemRemoteDataSource]),
  * - the user's claims, as claimant and as finder.
  *
+ * **Photos** are pushed after their item (the rules need the item document first). They have
+ * their own upload queue, so a status change doesn't re-upload the photo (see [PhotoRepository]).
+ *
  * Each change is merged into Room with last-write-wins ([SyncMerge]).
  *
  * **Lifecycle.** [start] combines the auth state with the app's foreground state and uses
@@ -74,6 +78,7 @@ class SyncManager(
     private val claimRepository: ClaimRepository,
     private val itemRemote: ItemRemoteDataSource,
     private val claimRemote: ClaimRemoteDataSource,
+    private val photoRepository: PhotoRepository,
     private val syncPreferences: SyncPreferences,
     private val connectivity: ConnectivityObserver,
     private val appInForeground: Flow<Boolean>,
@@ -133,9 +138,9 @@ class SyncManager(
     }
 
     /**
-     * Pushes whenever Room has unsynced rows and the network is up.
+     * Pushes whenever Room has unsynced rows (or photos are queued) and the network is up.
      *
-     * `combine` re-evaluates when either count or the connection changes. `debounce` waits for
+     * `combine` re-evaluates when any count or the connection changes. `debounce` waits for
      * a short quiet period, so a burst of local writes (for example accepting a claim, which
      * changes several rows) becomes one push instead of several.
      */
@@ -144,8 +149,9 @@ class SyncManager(
         combine(
             itemDao.observeUnsyncedCount(),
             claimDao.observeUnsyncedCount(),
+            photoRepository.pendingUploads.map { it.size },
             connectivity.isOnline,
-        ) { items, claims, online -> online && items + claims > 0 }
+        ) { items, claims, photos, online -> online && items + claims + photos > 0 }
             .debounce(PUSH_DEBOUNCE_MS)
             .filter { it }
             .collect { pushPending() }
@@ -185,6 +191,7 @@ class SyncManager(
                 // Either way the row can go: the tombstone is written, or there was nothing remote.
                 itemDao.deleteById(item.id)
                 if (!existedRemotely) Log.d(TAG, "Item ${item.id} was never uploaded; deleted locally only")
+                if (item.hasPhoto) photoRepository.deleteEverywhere(item.id)
                 sent++
             } else {
                 failed++
@@ -195,6 +202,24 @@ class SyncManager(
             if (claim.claimantId != uid && claim.finderId != uid) continue
             if (tryRemote("upload claim ${claim.id}") { claimRemote.upsert(claim.toDto()) }) {
                 claimDao.markSynced(claim.id, claim.updatedAt)
+                sent++
+            } else {
+                failed++
+            }
+        }
+
+        // Photos last, so an item uploaded above already exists when its photo is written.
+        for (itemId in photoRepository.pendingUploads.first()) {
+            val item = itemDao.getById(itemId)
+            val path = item?.localPhotoPath
+            if (item == null || !item.hasPhoto || path == null) {
+                // Deleted, or the photo was removed since it was queued: nothing to upload.
+                photoRepository.unqueue(itemId)
+                continue
+            }
+            // Wait until the item document itself is in Firestore (and only push our own).
+            if (item.ownerId != uid || item.syncState != SyncState.SYNCED) continue
+            if (tryRemote("upload photo $itemId") { photoRepository.upload(itemId, item.ownerId, path) }) {
                 sent++
             } else {
                 failed++

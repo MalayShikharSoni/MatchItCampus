@@ -13,7 +13,7 @@ import com.matchitcampus.app.ui.detail.ItemDetailScreen
 import com.matchitcampus.app.ui.home.HomeRoute
 import com.matchitcampus.app.ui.map.MapScreen
 import com.matchitcampus.app.ui.myposts.MyPostsScreen
-import com.matchitcampus.app.ui.post.PostItemScreen
+import com.matchitcampus.app.ui.post.PostItemRoute
 import com.matchitcampus.app.ui.profile.ProfileRoute
 
 /**
@@ -37,7 +37,7 @@ fun MainNavHost(
     ) {
         composable<Routes.Home> {
             HomeRoute(
-                onPostItem = { navController.navigate(Routes.PostItem) },
+                onPostItem = { navController.navigate(Routes.PostItem()) },
                 onOpenItem = { itemId -> navController.navigate(Routes.ItemDetail(itemId)) },
             )
         }
@@ -51,7 +51,23 @@ fun MainNavHost(
             )
         }
 
-        composable<Routes.PostItem> { PostItemScreen(onBack = goBack) }
+        composable<Routes.PostItem> {
+            PostItemRoute(
+                onBack = goBack,
+                onSaved = { itemId, wasEdit ->
+                    if (wasEdit) {
+                        // Editing was opened from the item's own screen: just go back to it.
+                        navController.popBackStack()
+                    } else {
+                        // Show the new item (and its matches). popUpTo removes the form from the
+                        // back stack, so Back from the item returns to where the user started.
+                        navController.navigate(Routes.ItemDetail(itemId)) {
+                            popUpTo<Routes.PostItem> { inclusive = true }
+                        }
+                    }
+                },
+            )
+        }
         composable<Routes.ItemDetail> { backStackEntry ->
             // toRoute() rebuilds the typed route object, so itemId is a String, not a raw argument.
             val route = backStackEntry.toRoute<Routes.ItemDetail>()

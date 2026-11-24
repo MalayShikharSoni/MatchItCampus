@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -40,7 +41,22 @@ class SyncPreferences(context: Context) {
         }
     }
 
+    /**
+     * Ids of items whose photo still has to be uploaded (see `PhotoRepository`). A small set of
+     * ids fits DataStore well, and it survives the app being closed while offline.
+     */
+    val pendingPhotoUploads: Flow<Set<String>> = dataStore.data.map { it[PENDING_PHOTOS] ?: emptySet() }
+
+    suspend fun addPendingPhoto(itemId: String) {
+        dataStore.edit { prefs -> prefs[PENDING_PHOTOS] = (prefs[PENDING_PHOTOS] ?: emptySet()) + itemId }
+    }
+
+    suspend fun removePendingPhoto(itemId: String) {
+        dataStore.edit { prefs -> prefs[PENDING_PHOTOS] = (prefs[PENDING_PHOTOS] ?: emptySet()) - itemId }
+    }
+
     private companion object {
         val LAST_ITEM_SYNC = longPreferencesKey("last_item_sync_millis")
+        val PENDING_PHOTOS = stringSetPreferencesKey("pending_photo_uploads")
     }
 }

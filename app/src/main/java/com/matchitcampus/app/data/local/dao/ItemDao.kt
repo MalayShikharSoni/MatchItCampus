@@ -160,6 +160,13 @@ interface ItemDao {
     )
     suspend fun markSynced(id: String, updatedAt: Long): Int
 
+    /**
+     * Records where this phone keeps the item's photo, after a download. Only that column
+     * changes: the path is local to this phone, so it isn't a change that needs syncing.
+     */
+    @Query("UPDATE items SET localPhotoPath = :path WHERE id = :id")
+    suspend fun updateLocalPhotoPath(id: String, path: String?): Int
+
     @Query("DELETE FROM items WHERE id = :id")
     suspend fun deleteById(id: String)
 
