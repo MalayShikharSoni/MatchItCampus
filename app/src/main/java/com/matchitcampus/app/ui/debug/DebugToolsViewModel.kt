@@ -26,6 +26,12 @@ import java.util.UUID
 private const val TAG = "MatchIt/DebugTools"
 
 /**
+ * Thrown on purpose by "Throw test exception", to practise reading a crash in Logcat. Its own
+ * class name makes it easy to spot in the stack trace (filter Logcat by `level:error`).
+ */
+class DebugTestException : RuntimeException("Test exception thrown from Debug tools (crash-analysis practice)")
+
+/**
  * Debug-only helpers for checking sync by hand. More tools arrive in later phases
  * (zone capture, demo data, a test crash).
  */
@@ -86,6 +92,16 @@ class DebugToolsViewModel(
             Log.d(TAG, "Posted test item ${item.id}")
             say(R.string.debug_test_item_posted)
         }
+    }
+
+    /**
+     * Crashes the app on purpose. It throws on the main thread from a click handler, which is
+     * exactly what an unexpected bug looks like: Android prints `FATAL EXCEPTION: main` with the
+     * stack trace in Logcat and closes the app. docs/DEBUGGING.md (Phase 8) walks through it.
+     */
+    fun onThrowTestException(): Nothing {
+        Log.w(TAG, "Throwing a test exception on purpose")
+        throw DebugTestException()
     }
 
     private suspend fun say(@StringRes message: Int) = _messages.emit(message)

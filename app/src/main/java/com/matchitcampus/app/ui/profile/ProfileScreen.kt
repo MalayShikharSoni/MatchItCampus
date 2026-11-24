@@ -9,6 +9,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -23,6 +24,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.matchitcampus.app.BuildConfig
 import com.matchitcampus.app.R
 import com.matchitcampus.app.ui.theme.MatchItCampusTheme
 
@@ -46,12 +48,15 @@ fun ProfileRoute(
         onLogoutClick = viewModel::onLogoutClick,
         onConfirmLogout = viewModel::onConfirmLogout,
         onDismissLogoutWarning = viewModel::onDismissLogoutWarning,
+        appVersion = BuildConfig.VERSION_NAME,
     )
 }
 
 /**
- * Who's signed in, sync status, and logout. The full profile screen (about, attribution)
- * comes in Phase 5.
+ * Who's signed in, sync status, logout, and an About section with the credits the app must
+ * show (the on-device text model, and the map data used from Phase 6).
+ *
+ * @param appVersion passed in (from `BuildConfig`) so previews don't depend on the build.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,6 +67,7 @@ fun ProfileScreen(
     onLogoutClick: () -> Unit,
     onConfirmLogout: () -> Unit,
     onDismissLogoutWarning: () -> Unit,
+    appVersion: String,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -97,6 +103,13 @@ fun ProfileScreen(
             Button(onClick = onLogoutClick, modifier = Modifier.padding(top = 8.dp)) {
                 Text(stringResource(R.string.action_log_out))
             }
+
+            HorizontalDivider(Modifier.padding(vertical = 16.dp))
+            Text(stringResource(R.string.about_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.about_body), style = MaterialTheme.typography.bodyMedium)
+            AboutLine(stringResource(R.string.about_matching))
+            AboutLine(stringResource(R.string.about_map_attribution))
+            AboutLine(stringResource(R.string.about_version, appVersion))
         }
     }
 
@@ -115,6 +128,11 @@ fun ProfileScreen(
     }
 }
 
+@Composable
+private fun AboutLine(text: String) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
 @Preview(showBackground = true)
 @Composable
 private fun ProfileScreenPreview() {
@@ -126,6 +144,7 @@ private fun ProfileScreenPreview() {
             onLogoutClick = {},
             onConfirmLogout = {},
             onDismissLogoutWarning = {},
+            appVersion = "1.0",
         )
     }
 }

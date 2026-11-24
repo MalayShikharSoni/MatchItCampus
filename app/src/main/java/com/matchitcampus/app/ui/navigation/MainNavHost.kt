@@ -11,7 +11,7 @@ import com.matchitcampus.app.ui.debug.DebugToolsRoute
 import com.matchitcampus.app.ui.detail.ItemDetailRoute
 import com.matchitcampus.app.ui.home.HomeRoute
 import com.matchitcampus.app.ui.map.MapScreen
-import com.matchitcampus.app.ui.myposts.MyPostsScreen
+import com.matchitcampus.app.ui.myposts.MyPostsRoute
 import com.matchitcampus.app.ui.post.PostItemRoute
 import com.matchitcampus.app.ui.profile.ProfileRoute
 
@@ -41,7 +41,13 @@ fun MainNavHost(
             )
         }
         composable<Routes.Map> { MapScreen() }
-        composable<Routes.MyPosts> { MyPostsScreen() }
+        composable<Routes.MyPosts> {
+            MyPostsRoute(
+                onOpenItem = { itemId -> navController.navigate(Routes.ItemDetail(itemId)) },
+                onEditItem = { itemId -> navController.navigate(Routes.PostItem(editItemId = itemId)) },
+                onPostItem = { navController.navigate(Routes.PostItem()) },
+            )
+        }
         composable<Routes.Claims> {
             ClaimsRoute(onOpenItem = { itemId -> navController.navigate(Routes.ItemDetail(itemId)) })
         }

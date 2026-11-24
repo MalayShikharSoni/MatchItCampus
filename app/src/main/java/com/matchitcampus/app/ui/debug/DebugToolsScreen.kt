@@ -51,6 +51,7 @@ fun DebugToolsRoute(
         onBack = onBack,
         onForceSync = viewModel::onForceSync,
         onPostTestItem = viewModel::onPostTestItem,
+        onThrowTestException = { viewModel.onThrowTestException() },
     )
 }
 
@@ -61,6 +62,7 @@ fun DebugToolsScreen(
     onBack: () -> Unit,
     onForceSync: () -> Unit,
     onPostTestItem: () -> Unit,
+    onThrowTestException: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -86,6 +88,7 @@ fun DebugToolsScreen(
         ) {
             OutlinedButton(onClick = onForceSync) { Text(stringResource(R.string.debug_force_sync)) }
             OutlinedButton(onClick = onPostTestItem) { Text(stringResource(R.string.debug_post_test_item)) }
+            OutlinedButton(onClick = onThrowTestException) { Text(stringResource(R.string.debug_throw_exception)) }
         }
     }
 }
@@ -99,6 +102,7 @@ private fun DebugToolsScreenPreview() {
             onBack = {},
             onForceSync = {},
             onPostTestItem = {},
+            onThrowTestException = {},
         )
     }
 }

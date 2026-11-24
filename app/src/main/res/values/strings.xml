@@ -252,4 +252,21 @@
     <string name="claims_empty_outgoing_body">Open a found item and tap \"This is mine\" to claim it.</string>
     <string name="snackbar_new_claim">%1$s claimed one of your items</string>
     <string name="action_view">View</string>
+
+
+    <!-- My posts (Phase 5) -->
+    <string name="myposts_empty_title">You haven\'t posted anything yet</string>
+    <string name="myposts_empty_body">Lost or found something on campus? Post it and we\'ll look for matches.</string>
+    <string name="myposts_more_actions">More actions for %1$s</string>
+    <string name="myposts_confirm_delete_body">\"%1$s\" will be removed for everyone. This can\'t be undone.</string>
+    <string name="myposts_deleted">Post deleted</string>
+
+
+    <!-- Profile: about (Phase 5) -->
+    <string name="about_title">About</string>
+    <string name="about_body">MatchIt Campus helps LPU students get lost things back. Post what you lost or found, and the app suggests likely matches.</string>
+    <string name="about_matching">Matching runs on your phone with the Universal Sentence Encoder (MediaPipe). Your posts aren\'t sent to any AI service.</string>
+    <string name="about_map_attribution">Map: OpenFreeMap Â© OpenMapTiles Data from OpenStreetMap</string>
+    <string name="about_version">Version %1$s</string>
+    <string name="debug_throw_exception">Throw test exception (closes the app)</string>
 </resources>
