@@ -1,9 +1,9 @@
 package com.matchitcampus.app.ui.util
 
-import org.junit.Assert.assertEquals
-import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneId
+import org.junit.Assert.assertEquals
+import org.junit.Test
 
 class FormattersTest {
 
@@ -42,5 +42,10 @@ class FormattersTest {
         assertEquals(82, Formatters.percent(0.823))
         assertEquals(0, Formatters.percent(-0.2))
         assertEquals(100, Formatters.percent(1.4))
+    }
+
+    @Test
+    fun coordinates_fiveDecimals_withAPoint() {
+        assertEquals("31.25510, 75.70490", Formatters.coordinates(31.2551, 75.7049))
     }
 }

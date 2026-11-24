@@ -1,11 +1,11 @@
 package com.matchitcampus.app.data.local.seed
 
 import com.matchitcampus.app.domain.model.ZoneType
+import java.io.File
 import kotlinx.serialization.SerializationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
 /**
  * Tests [ZoneSeedParser], including against the real `campus_zones.json`, so a typo made
@@ -69,5 +69,23 @@ class ZoneSeedParserTest {
     @Test(expected = SerializationException::class)
     fun parse_missingField_throws() {
         ZoneSeedParser.parse("""{ "zones": [ { "id": "x", "name": "X" } ] }""")
+    }
+
+    @Test
+    fun encode_thenParse_givesTheSameZones_andKeepsTheReadme() {
+        val zones = ZoneSeedParser.parse(realSeedFile.readText())
+            .mapIndexed { i, zone -> if (i == 0) zone.copy(latitude = 31.2561, longitude = 75.7042, isPlaceholder = false) else zone }
+
+        val exported = ZoneSeedParser.encode(zones, readme = "hello")
+
+        assertEquals(zones, ZoneSeedParser.parse(exported))
+        assertEquals("hello", ZoneSeedParser.readme(exported))
+        // The readme comes first, like in the hand-written file.
+        assertTrue(exported.indexOf("_readme") < exported.indexOf("zones"))
+    }
+
+    @Test
+    fun readme_ofTheRealFile_isPresent() {
+        assertTrue(ZoneSeedParser.readme(realSeedFile.readText())!!.isNotBlank())
     }
 }
