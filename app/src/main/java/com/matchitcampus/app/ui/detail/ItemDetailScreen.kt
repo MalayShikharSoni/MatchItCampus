@@ -55,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -70,6 +71,7 @@ import com.matchitcampus.app.domain.model.ClaimStatus
 import com.matchitcampus.app.domain.model.Item
 import com.matchitcampus.app.domain.model.ItemStatus
 import com.matchitcampus.app.domain.model.ItemType
+import com.matchitcampus.app.location.mapPosition
 import com.matchitcampus.app.ui.components.ClaimCard
 import com.matchitcampus.app.ui.components.ClaimPerspective
 import com.matchitcampus.app.ui.components.EmptyState
@@ -79,6 +81,7 @@ import com.matchitcampus.app.ui.components.LoadingState
 import com.matchitcampus.app.ui.components.MatchScoreBar
 import com.matchitcampus.app.ui.components.PreviewData
 import com.matchitcampus.app.ui.components.StatusChip
+import com.matchitcampus.app.ui.map.ItemMiniMap
 import com.matchitcampus.app.ui.theme.MatchItCampusTheme
 import com.matchitcampus.app.ui.util.Formatters
 import com.matchitcampus.app.ui.util.relativeEventDate
@@ -285,6 +288,11 @@ private fun ItemHeader(state: ItemDetailUiState, item: Item) {
             value = listOfNotNull(item.zone?.name, item.addressLine).joinToString(", ")
                 .ifEmpty { stringResource(R.string.detail_location_unknown) },
         )
+        // The pin, or the centre of a real zone. Previews skip it: MapLibre can't render there.
+        val position = item.mapPosition()
+        if (position != null && !LocalInspectionMode.current) {
+            ItemMiniMap(position = position, type = item.type)
+        }
         InfoLine(
             label = stringResource(R.string.detail_posted_by),
             value = if (state.isOwner) stringResource(R.string.detail_posted_by_you) else item.ownerName,

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -23,7 +24,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,22 +35,27 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -64,8 +72,10 @@ import com.matchitcampus.app.ui.components.EmptyState
 import com.matchitcampus.app.ui.components.ErrorState
 import com.matchitcampus.app.ui.components.ItemCard
 import com.matchitcampus.app.ui.components.LoadingState
+import com.matchitcampus.app.ui.components.LocationPermissionGate
 import com.matchitcampus.app.ui.components.PreviewData
 import com.matchitcampus.app.ui.theme.MatchItCampusTheme
+import com.matchitcampus.app.ui.util.Formatters
 import com.matchitcampus.app.ui.util.labelRes
 
 /** Test tags for Compose UI tests (Phase 8). */
@@ -74,6 +84,7 @@ object HomeTestTags {
     const val TAB_LOST = "home_tab_lost"
     const val TAB_FOUND = "home_tab_found"
     const val LIST = "home_list"
+    const val NEAR_ME = "home_near_me"
 }
 
 /** Stateful entry point: connects [HomeViewModel] to the stateless [HomeScreen]. */
@@ -85,18 +96,29 @@ fun HomeRoute(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
-    HomeScreen(
-        state = state,
-        query = query,
-        onQueryChange = viewModel::onQueryChange,
-        onTabSelected = viewModel::onTabSelected,
-        onFiltersChange = viewModel::onFiltersChange,
-        onClearSearchAndFilters = viewModel::onClearSearchAndFilters,
-        onRefresh = viewModel::onRefresh,
-        onRetry = viewModel::onRetry,
-        onPostItem = onPostItem,
-        onOpenItem = onOpenItem,
-    )
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        viewModel.messages.collect { snackbarHostState.showSnackbar(context.getString(it)) }
+    }
+    // The permission gate needs an Activity, so it wraps the screen here rather than inside it.
+    LocationPermissionGate(onGranted = viewModel::onNearMeGranted) { requestLocation ->
+        HomeScreen(
+            state = state,
+            query = query,
+            snackbarHostState = snackbarHostState,
+            onQueryChange = viewModel::onQueryChange,
+            onTabSelected = viewModel::onTabSelected,
+            onFiltersChange = viewModel::onFiltersChange,
+            onNearMe = requestLocation,
+            onNearMeOff = viewModel::onNearMeOff,
+            onClearSearchAndFilters = viewModel::onClearSearchAndFilters,
+            onRefresh = viewModel::onRefresh,
+            onRetry = viewModel::onRetry,
+            onPostItem = onPostItem,
+            onOpenItem = onOpenItem,
+        )
+    }
 }
 
 /** What the list area shows. [Crossfade] fades between these instead of jumping. */
@@ -115,9 +137,12 @@ private enum class FeedContent { LOADING, ERROR, EMPTY, LIST }
 fun HomeScreen(
     state: HomeUiState,
     query: String,
+    snackbarHostState: SnackbarHostState,
     onQueryChange: (String) -> Unit,
     onTabSelected: (ItemType) -> Unit,
     onFiltersChange: (FeedFilters) -> Unit,
+    onNearMe: () -> Unit,
+    onNearMeOff: () -> Unit,
     onClearSearchAndFilters: () -> Unit,
     onRefresh: () -> Unit,
     onRetry: () -> Unit,
@@ -134,6 +159,7 @@ fun HomeScreen(
     Scaffold(
         modifier = modifier,
         topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onPostItem,
@@ -162,7 +188,7 @@ fun HomeScreen(
                     )
                 }
             }
-            FilterChipsRow(state = state, onFiltersChange = onFiltersChange)
+            FilterChipsRow(state = state, onFiltersChange = onFiltersChange, onNearMe = onNearMe, onNearMeOff = onNearMeOff)
 
             PullToRefreshBox(
                 isRefreshing = state.isRefreshing,
@@ -216,9 +242,14 @@ private fun SearchField(query: String, tab: ItemType, onQueryChange: (String) ->
     )
 }
 
-/** Category, zone, date and status filters, scrolling sideways on narrow screens. */
+/** "Near me", then the category, zone, date and status filters, scrolling sideways on narrow screens. */
 @Composable
-private fun FilterChipsRow(state: HomeUiState, onFiltersChange: (FeedFilters) -> Unit) {
+private fun FilterChipsRow(
+    state: HomeUiState,
+    onFiltersChange: (FeedFilters) -> Unit,
+    onNearMe: () -> Unit,
+    onNearMeOff: () -> Unit,
+) {
     val filters = state.filters
     Row(
         modifier = Modifier
@@ -227,6 +258,21 @@ private fun FilterChipsRow(state: HomeUiState, onFiltersChange: (FeedFilters) ->
             .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        val nearMe = filters.sort == FeedSort.NEAR_ME
+        FilterChip(
+            selected = nearMe,
+            onClick = if (nearMe) onNearMeOff else onNearMe,
+            enabled = !state.isLocating,
+            label = { Text(stringResource(R.string.filter_near_me)) },
+            leadingIcon = {
+                if (state.isLocating) {
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Filled.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
+                }
+            },
+            modifier = Modifier.testTag(HomeTestTags.NEAR_ME),
+        )
         DropdownFilterChip(
             label = stringResource(R.string.filter_category),
             anyLabel = stringResource(R.string.filter_any_category),
@@ -312,7 +358,14 @@ private fun FeedList(state: HomeUiState, listState: LazyListState, onOpenItem: (
         // move instead of being rebuilt. contentType: all rows are the same kind, so their
         // compositions can be reused while scrolling.
         items(state.items, key = { it.id }, contentType = { "item" }) { item ->
-            ItemCard(item = item, onClick = { onOpenItem(item.id) })
+            val distance = state.distances[item.id]
+            ItemCard(
+                item = item,
+                onClick = { onOpenItem(item.id) },
+                trailing = distance?.let {
+                    { Text(Formatters.distance(it), style = MaterialTheme.typography.labelMedium) }
+                },
+            )
         }
     }
 }
@@ -350,9 +403,12 @@ private fun HomeScreenPreview() {
                 filters = FeedFilters(category = Category.ELECTRONICS),
             ),
             query = "",
+            snackbarHostState = remember { SnackbarHostState() },
             onQueryChange = {},
             onTabSelected = {},
             onFiltersChange = {},
+            onNearMe = {},
+            onNearMeOff = {},
             onClearSearchAndFilters = {},
             onRefresh = {},
             onRetry = {},

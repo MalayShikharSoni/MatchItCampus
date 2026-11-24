@@ -266,7 +266,45 @@
     <string name="about_title">About</string>
     <string name="about_body">MatchIt Campus helps LPU students get lost things back. Post what you lost or found, and the app suggests likely matches.</string>
     <string name="about_matching">Matching runs on your phone with the Universal Sentence Encoder (MediaPipe). Your posts aren\'t sent to any AI service.</string>
-    <string name="about_map_attribution">Map: OpenFreeMap Â© OpenMapTiles Data from OpenStreetMap</string>
+    <string name="about_map_attribution">Map: OpenFreeMap © OpenMapTiles Data from OpenStreetMap</string>
     <string name="about_version">Version %1$s</string>
     <string name="debug_throw_exception">Throw test exception (closes the app)</string>
+
+    <!-- Location and map (Phase 6) -->
+    <string name="action_continue">Continue</string>
+    <string name="action_not_now">Not now</string>
+    <string name="action_open_settings">Open settings</string>
+    <string name="location_rationale_title">Use your location?</string>
+    <string name="location_rationale_text">MatchIt uses your location only while the app is open: to fill in where you lost or found something, to show you on the campus map, and to sort posts by distance. It is never tracked in the background.</string>
+    <string name="location_denied_title">Location is turned off for MatchIt</string>
+    <string name="location_denied_text">Android won\'t ask again. To use your location, open MatchIt\'s settings and allow Location under Permissions.</string>
+    <string name="location_unavailable">Couldn\'t get your location. Check that location is on, then try again.</string>
+    <string name="location_approximate">Only your approximate location is allowed, so the position may be off by a few hundred metres.</string>
+    <string name="map_attribution">OpenFreeMap © OpenMapTiles Data from OpenStreetMap</string>
+    <string name="map_my_location">Show my location</string>
+    <string name="title_pin_picker">Drop a pin</string>
+    <string name="pin_search_hint">Search a place</string>
+    <string name="pin_search_no_results">No places found. Try another name, or move the map by hand.</string>
+    <string name="pin_use_this_spot">Use this spot</string>
+    <string name="post_use_my_location">Use my location</string>
+    <string name="post_drop_pin">Drop a pin</string>
+    <string name="post_move_pin">Move pin</string>
+    <string name="post_remove_pin">Remove pin</string>
+    <string name="post_pin_set">Exact spot: %1$s</string>
+    <string name="post_zone_suggested">Zone set to %1$s from this spot. You can still change it.</string>
+    <string name="post_zone_not_found">This spot isn\'t inside a mapped zone yet, so pick one from the list.</string>
+    <string name="title_zone_capture">Zone capture</string>
+    <string name="zone_capture_help">Stand in the middle of a zone and tap \"Set here\". Its centre moves to your location and it stops being a placeholder. Then tap \"Copy JSON\" and paste the result over app/src/main/assets/campus_zones.json.</string>
+    <string name="zone_capture_set_here">Set here</string>
+    <string name="zone_capture_export">Copy JSON</string>
+    <string name="zone_capture_placeholder">Placeholder (not captured yet)</string>
+    <string name="zone_capture_done">Saved %1$s</string>
+    <string name="zone_capture_failed">Couldn\'t save the zone. See Logcat (tag:MatchIt/ZoneCapture).</string>
+    <string name="zone_capture_needs_precise">Zone capture needs precise location. Allow \"Precise\" in MatchIt\'s location permission.</string>
+    <string name="zone_capture_copied">Zone JSON copied to the clipboard (also in Logcat)</string>
+    <string name="filter_near_me">Near me</string>
+    <plurals name="map_unplaced_items">
+        <item quantity="one">%1$d open item has no map position</item>
+        <item quantity="other">%1$d open items have no map position</item>
+    </plurals>
 </resources>

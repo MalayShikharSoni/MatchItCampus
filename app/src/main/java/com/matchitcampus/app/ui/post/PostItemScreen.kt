@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -33,6 +34,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -75,6 +77,8 @@ import coil3.compose.AsyncImage
 import com.matchitcampus.app.R
 import com.matchitcampus.app.domain.model.Category
 import com.matchitcampus.app.domain.model.ItemType
+import com.matchitcampus.app.location.LatLng
+import com.matchitcampus.app.ui.components.LocationPermissionGate
 import com.matchitcampus.app.ui.components.LoadingState
 import com.matchitcampus.app.ui.components.PreviewData
 import com.matchitcampus.app.ui.components.ZonePickerSheet
@@ -98,6 +102,11 @@ object PostItemTestTags {
  * - The Photo Picker launcher lives here, not in [PostItemScreen], because it needs a real
  *   Activity (previews and UI tests don't have one). `PickVisualMedia` uses the system Photo
  *   Picker, so the app needs no storage permission.
+ * - `LocationPermissionGate` also lives here (it needs an Activity too). It turns "Use my
+ *   location" into a permission request first, then into [PostItemAction.UseMyLocation].
+ * - The pin picker is a separate screen. Its result comes back as [pickedPin] (see
+ *   `MainNavHost`); a `LaunchedEffect` keyed on it hands it to the ViewModel once, then
+ *   [onPinConsumed] clears it so rotation doesn't apply it twice.
  * - `LaunchedEffect(Unit)` collects the ViewModel's one-shot events while the screen is shown.
  *   `rememberUpdatedState` makes sure that long-running coroutine always calls the newest
  *   `onSaved` lambda, even if the caller passes a new one on recomposition.
@@ -106,6 +115,9 @@ object PostItemTestTags {
 fun PostItemRoute(
     onBack: () -> Unit,
     onSaved: (itemId: String, wasEdit: Boolean) -> Unit,
+    onPickPin: (current: LatLng?) -> Unit,
+    pickedPin: LatLng?,
+    onPinConsumed: () -> Unit,
     viewModel: PostItemViewModel = viewModel(factory = PostItemViewModel.Factory),
 ) {
     val form by viewModel.form.collectAsStateWithLifecycle()
@@ -118,7 +130,9 @@ fun PostItemRoute(
         viewModel.events.collect { event ->
             when (event) {
                 is PostItemEvent.Saved -> currentOnSaved(event.itemId, event.wasEdit)
-                is PostItemEvent.Message -> snackbarHostState.showSnackbar(context.getString(event.text))
+                is PostItemEvent.Message -> snackbarHostState.showSnackbar(
+                    if (event.arg != null) context.getString(event.text, event.arg) else context.getString(event.text),
+                )
             }
         }
     }
@@ -128,14 +142,29 @@ fun PostItemRoute(
         if (uri != null) viewModel.onAction(PostItemAction.PhotoPicked(uri))
     }
 
-    PostItemScreen(
-        form = form,
-        state = state,
-        snackbarHostState = snackbarHostState,
-        onAction = viewModel::onAction,
-        onPickPhoto = { pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-        onBack = onBack,
-    )
+    LaunchedEffect(pickedPin) {
+        if (pickedPin != null) {
+            viewModel.onAction(PostItemAction.PinPicked(pickedPin))
+            onPinConsumed()
+        }
+    }
+
+    LocationPermissionGate(onGranted = { precise -> viewModel.onAction(PostItemAction.UseMyLocation(precise)) }) { requestLocation ->
+        PostItemScreen(
+            form = form,
+            state = state,
+            snackbarHostState = snackbarHostState,
+            onAction = viewModel::onAction,
+            onPickPhoto = { pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+            onUseMyLocation = requestLocation,
+            onPickPin = {
+                val lat = form.latitude
+                val lng = form.longitude
+                onPickPin(if (lat != null && lng != null) LatLng(lat, lng) else null)
+            },
+            onBack = onBack,
+        )
+    }
 }
 
 /**
@@ -153,6 +182,8 @@ fun PostItemScreen(
     snackbarHostState: SnackbarHostState,
     onAction: (PostItemAction) -> Unit,
     onPickPhoto: () -> Unit,
+    onUseMyLocation: () -> Unit,
+    onPickPin: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -230,6 +261,13 @@ fun PostItemScreen(
                 isError = PostField.ZONE in state.visibleErrors,
                 supportingText = fieldSupportingText(state, PostField.ZONE),
                 onClick = { showZonePicker = true },
+            )
+            LocationSection(
+                form = form,
+                isLocating = state.isLocating,
+                onUseMyLocation = onUseMyLocation,
+                onPickPin = onPickPin,
+                onClearPin = { onAction(PostItemAction.ClearPin) },
             )
             // Only finders ask a question. AnimatedVisibility slides it in when "Found" is chosen.
             AnimatedVisibility(visible = form.type == ItemType.FOUND) {
@@ -406,6 +444,50 @@ private fun EventDatePicker(selected: Long, latestAllowed: Long, onPicked: (Long
     }
 }
 
+/**
+ * Optional exact spot under the zone field: "Use my location" (GPS fix, address and a suggested
+ * zone) or "Drop a pin" (the full-screen picker). The zone stays the required part; the pin
+ * makes matching's distance score more precise.
+ */
+@Composable
+private fun LocationSection(
+    form: PostItemForm,
+    isLocating: Boolean,
+    onUseMyLocation: () -> Unit,
+    onPickPin: () -> Unit,
+    onClearPin: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onUseMyLocation, enabled = !isLocating) {
+                Icon(Icons.Filled.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(stringResource(R.string.post_use_my_location), modifier = Modifier.padding(start = 6.dp))
+            }
+            OutlinedButton(onClick = onPickPin, enabled = !isLocating) {
+                Icon(Icons.Filled.Place, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(
+                    stringResource(if (form.hasPin) R.string.post_move_pin else R.string.post_drop_pin),
+                    modifier = Modifier.padding(start = 6.dp),
+                )
+            }
+        }
+        if (isLocating) LinearProgressIndicator(Modifier.fillMaxWidth())
+        val lat = form.latitude
+        val lng = form.longitude
+        if (lat != null && lng != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.post_pin_set, form.addressLine ?: Formatters.coordinates(lat, lng)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onClearPin) { Text(stringResource(R.string.post_remove_pin)) }
+            }
+        }
+    }
+}
+
 @Composable
 private fun PhotoSection(form: PostItemForm, isProcessing: Boolean, onPickPhoto: () -> Unit, onRemove: () -> Unit) {
     val shownPath = form.shownPhotoPath
@@ -476,7 +558,14 @@ private fun PostField.labelRes(): Int = when (this) {
 private fun PostItemScreenPreview() {
     MatchItCampusTheme {
         PostItemScreen(
-            form = PostItemForm(type = ItemType.FOUND, title = "Black earphone case", eventDate = 1_795_000_000_000L),
+            form = PostItemForm(
+                type = ItemType.FOUND,
+                title = "Black earphone case",
+                eventDate = 1_795_000_000_000L,
+                latitude = 31.2551,
+                longitude = 75.7049,
+                addressLine = "Block 34, Phagwara",
+            ),
             state = PostItemUiState(
                 zones = PreviewData.zones,
                 missingFields = listOf(PostField.DESCRIPTION, PostField.CATEGORY),
@@ -486,6 +575,8 @@ private fun PostItemScreenPreview() {
             snackbarHostState = remember { SnackbarHostState() },
             onAction = {},
             onPickPhoto = {},
+            onUseMyLocation = {},
+            onPickPin = {},
             onBack = {},
         )
     }

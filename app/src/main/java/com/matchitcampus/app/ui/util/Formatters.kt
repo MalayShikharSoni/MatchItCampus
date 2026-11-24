@@ -6,6 +6,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
@@ -45,6 +46,13 @@ object Formatters {
         val tenths = (meters / 100).roundToInt()
         "${tenths / 10}.${tenths % 10} km"
     }
+
+    /**
+     * Coordinates for display, such as "31.25510, 75.70490". Five decimals is about 1 m, finer
+     * than any phone's GPS. `Locale.US` keeps the decimal point a point on every phone language.
+     */
+    fun coordinates(latitude: Double, longitude: Double): String =
+        String.format(Locale.US, "%.5f, %.5f", latitude, longitude)
 
     /** A 0..1 score as a whole percentage, for example 0.823 → 82. */
     fun percent(score: Double): Int = (score.coerceIn(0.0, 1.0) * 100).roundToInt()

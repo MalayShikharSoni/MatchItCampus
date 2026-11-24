@@ -18,6 +18,8 @@ import com.matchitcampus.app.domain.model.Item
 import com.matchitcampus.app.domain.model.ItemStatus
 import com.matchitcampus.app.domain.model.ItemType
 import com.matchitcampus.app.domain.model.SyncState
+import com.matchitcampus.app.location.LatLng
+import com.matchitcampus.app.location.ZoneResolver
 import com.matchitcampus.app.ui.util.Formatters
 import com.matchitcampus.app.ui.util.appContainer
 import kotlinx.coroutines.CancellationException
@@ -30,6 +32,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -50,6 +53,8 @@ data class PostItemUiState(
     val isLoadingItem: Boolean = false,
     val isProcessingPhoto: Boolean = false,
     val isSaving: Boolean = false,
+    /** "Use my location" or a picked pin is being looked up (fix, address, zone). */
+    val isLocating: Boolean = false,
 ) {
     val canSubmit: Boolean get() = missingFields.isEmpty() && !isSaving && !isProcessingPhoto && !isLoadingItem
 }
@@ -65,6 +70,13 @@ sealed interface PostItemAction {
     data class QuestionChanged(val value: String) : PostItemAction
     data class PhotoPicked(val uri: Uri) : PostItemAction
     data object RemovePhoto : PostItemAction
+
+    /** "Use my location" pressed and permission granted; [precise] is false for approximate only. */
+    data class UseMyLocation(val precise: Boolean) : PostItemAction
+
+    /** A spot chosen in the pin picker. */
+    data class PinPicked(val position: LatLng) : PostItemAction
+    data object ClearPin : PostItemAction
     data object Submit : PostItemAction
 }
 
@@ -72,7 +84,7 @@ sealed interface PostItemAction {
 sealed interface PostItemEvent {
     /** The item was saved; [wasEdit] tells the screen whether to go back or open the new item. */
     data class Saved(val itemId: String, val wasEdit: Boolean) : PostItemEvent
-    data class Message(@param:StringRes val text: Int) : PostItemEvent
+    data class Message(@param:StringRes val text: Int, val arg: String? = null) : PostItemEvent
 }
 
 /**
@@ -116,6 +128,7 @@ class PostItemViewModel(
     private val isLoadingItem = MutableStateFlow(false)
     private val isProcessingPhoto = MutableStateFlow(false)
     private val isSaving = MutableStateFlow(false)
+    private val isLocating = MutableStateFlow(false)
 
     private val _events = MutableSharedFlow<PostItemEvent>()
 
@@ -128,12 +141,12 @@ class PostItemViewModel(
     val uiState: StateFlow<PostItemUiState> = combine(
         _form,
         combine(touched, submitAttempted, ::Pair),
-        combine(isLoadingItem, isProcessingPhoto, isSaving, ::Triple),
+        combine(isLoadingItem, isProcessingPhoto, isSaving, isLocating, ::Busy),
         data.observeZones().catch { e ->
             Log.e(TAG, "Couldn't load zones", e)
             emit(emptyList())
         },
-    ) { currentForm, (touchedFields, attempted), (loading, processing, saving), zones ->
+    ) { currentForm, (touchedFields, attempted), busy, zones ->
         val today = todayEventDate()
         val errors = PostItemValidator.validate(currentForm, today)
         PostItemUiState(
@@ -142,9 +155,10 @@ class PostItemViewModel(
             visibleErrors = if (attempted) errors else errors.filterKeys { it in touchedFields },
             missingFields = PostField.entries.filter { it in errors },
             todayEventDate = today,
-            isLoadingItem = loading,
-            isProcessingPhoto = processing,
-            isSaving = saving,
+            isLoadingItem = busy.loading,
+            isProcessingPhoto = busy.processingPhoto,
+            isSaving = busy.saving,
+            isLocating = busy.locating,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PostItemUiState(isEditing = editItemId != null))
 
@@ -163,6 +177,9 @@ class PostItemViewModel(
             is PostItemAction.QuestionChanged -> updateForm(PostField.QUESTION) { it.copy(verificationQuestion = action.value) }
             is PostItemAction.PhotoPicked -> processPhoto(action.uri)
             PostItemAction.RemovePhoto -> removePhoto()
+            is PostItemAction.UseMyLocation -> useMyLocation(action.precise)
+            is PostItemAction.PinPicked -> applyPosition(action.position)
+            PostItemAction.ClearPin -> updateForm(null) { it.copy(latitude = null, longitude = null, addressLine = null) }
             PostItemAction.Submit -> submit()
         }
     }
@@ -197,6 +214,9 @@ class PostItemViewModel(
                     verificationQuestion = item.verificationQuestion.orEmpty(),
                     existingPhotoPath = item.localPhotoPath,
                     existingHasPhoto = item.hasPhoto,
+                    latitude = item.latitude,
+                    longitude = item.longitude,
+                    addressLine = item.addressLine,
                 )
                 saveForm(_form.value)
                 savedStateHandle[KEY_LOADED] = true
@@ -224,6 +244,60 @@ class PostItemViewModel(
                 _events.emit(PostItemEvent.Message(R.string.post_error_photo_unreadable))
             } finally {
                 isProcessingPhoto.value = false
+            }
+        }
+    }
+
+    /** One-shot location fix, then the same steps as a picked pin. */
+    private fun useMyLocation(precise: Boolean) {
+        if (isLocating.value) return
+        viewModelScope.launch {
+            isLocating.value = true
+            val position = try {
+                data.currentLocation()
+            } finally {
+                isLocating.value = false
+            }
+            if (position == null) {
+                _events.emit(PostItemEvent.Message(R.string.location_unavailable))
+                return@launch
+            }
+            applyPosition(position)
+            if (!precise) _events.emit(PostItemEvent.Message(R.string.location_approximate))
+        }
+    }
+
+    /**
+     * Stores the spot, looks up its address, and suggests a zone with [ZoneResolver].
+     *
+     * A suggested zone replaces the chosen one (the user can still change it in the sheet). If no
+     * real zone contains the spot, the zone the user picked is kept: a spot outside every mapped
+     * zone (or any spot while zones are still placeholders) says nothing about which zone is right.
+     */
+    private fun applyPosition(position: LatLng) {
+        updateForm(null) { it.copy(latitude = position.latitude, longitude = position.longitude, addressLine = null) }
+        viewModelScope.launch {
+            isLocating.value = true
+            try {
+                val address = data.addressLine(position)
+                val zones = data.observeZones().first()
+                val zone = ZoneResolver.nearestZone(position.latitude, position.longitude, zones)
+                Log.d(TAG, "Spot $position -> address=$address, zone=${zone?.id}")
+                // Ignore the answer if the spot was changed again while it was being looked up.
+                if (_form.value.latitude != position.latitude || _form.value.longitude != position.longitude) return@launch
+                if (zone != null) {
+                    updateForm(PostField.ZONE) { it.copy(addressLine = address, zoneId = zone.id) }
+                    _events.emit(PostItemEvent.Message(R.string.post_zone_suggested, zone.name))
+                } else {
+                    updateForm(null) { it.copy(addressLine = address) }
+                    if (_form.value.zoneId == null) _events.emit(PostItemEvent.Message(R.string.post_zone_not_found))
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Couldn't look up the chosen spot", e)
+            } finally {
+                isLocating.value = false
             }
         }
     }
@@ -281,6 +355,7 @@ class PostItemViewModel(
      * `ItemRepository.saveItem`.
      */
     private fun buildItem(form: PostItemForm, id: String, author: Author, existing: Item?, photoPath: String?): Item {
+        // Since Phase 6 the form owns the pin, so an edit can add, move or clear it.
         val question = form.verificationQuestion.trim().takeIf { form.type == ItemType.FOUND }
         val common = existing ?: Item(
             id = id,
@@ -314,6 +389,9 @@ class PostItemViewModel(
             verificationQuestion = question,
             hasPhoto = form.willHavePhoto,
             localPhotoPath = photoPath,
+            latitude = form.latitude,
+            longitude = form.longitude,
+            addressLine = form.addressLine,
         )
     }
 
@@ -336,6 +414,9 @@ class PostItemViewModel(
         savedStateHandle[KEY_EXISTING_PHOTO] = form.existingPhotoPath
         savedStateHandle[KEY_EXISTING_HAS_PHOTO] = form.existingHasPhoto
         savedStateHandle[KEY_REMOVE_EXISTING] = form.removeExistingPhoto
+        savedStateHandle[KEY_LATITUDE] = form.latitude
+        savedStateHandle[KEY_LONGITUDE] = form.longitude
+        savedStateHandle[KEY_ADDRESS] = form.addressLine
     }
 
     private fun restoreForm(): PostItemForm = PostItemForm(
@@ -350,7 +431,13 @@ class PostItemViewModel(
         existingPhotoPath = savedStateHandle[KEY_EXISTING_PHOTO],
         existingHasPhoto = savedStateHandle[KEY_EXISTING_HAS_PHOTO] ?: false,
         removeExistingPhoto = savedStateHandle[KEY_REMOVE_EXISTING] ?: false,
+        latitude = savedStateHandle[KEY_LATITUDE],
+        longitude = savedStateHandle[KEY_LONGITUDE],
+        addressLine = savedStateHandle[KEY_ADDRESS],
     )
+
+    /** The four "busy" flags, grouped so the outer `combine` stays within its five-flow overload. */
+    private data class Busy(val loading: Boolean, val processingPhoto: Boolean, val saving: Boolean, val locating: Boolean)
 
     companion object {
         /** Must match the property name in `Routes.PostItem`. */
@@ -371,6 +458,9 @@ class PostItemViewModel(
         private const val KEY_EXISTING_PHOTO = "post_existing_photo"
         private const val KEY_EXISTING_HAS_PHOTO = "post_existing_has_photo"
         private const val KEY_REMOVE_EXISTING = "post_remove_existing"
+        private const val KEY_LATITUDE = "post_latitude"
+        private const val KEY_LONGITUDE = "post_longitude"
+        private const val KEY_ADDRESS = "post_address"
 
         val Factory = viewModelFactory {
             initializer {
@@ -381,6 +471,8 @@ class PostItemViewModel(
                         zoneRepository = container.zoneRepository,
                         authRepository = container.authRepository,
                         photoRepository = container.photoRepository,
+                        locationClient = container.locationClient,
+                        geocoderClient = container.geocoderClient,
                         appScope = container.applicationScope,
                     ),
                     savedStateHandle = createSavedStateHandle(),

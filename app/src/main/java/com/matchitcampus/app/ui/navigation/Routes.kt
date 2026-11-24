@@ -30,6 +30,16 @@ object Routes {
     @Serializable data class PostItem(val editItemId: String? = null)
     @Serializable data class ItemDetail(val itemId: String)
 
+    /**
+     * Full-screen map to drop a pin (opened from Post item). It opens on the given point, or on
+     * the campus centre when there's none yet. Nullable `Double` arguments are supported by
+     * type-safe navigation (Navigation 2.10).
+     */
+    @Serializable data class PinPicker(val latitude: Double? = null, val longitude: Double? = null)
+
+    /** Debug-only: set zone centres from the phone's location (registered in debug builds only). */
+    @Serializable data object ZoneCapture
+
     /** Only registered in debug builds (see [MainNavHost]). */
     @Serializable data object DebugTools
 }

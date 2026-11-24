@@ -37,6 +37,7 @@ import com.matchitcampus.app.ui.theme.MatchItCampusTheme
 @Composable
 fun DebugToolsRoute(
     onBack: () -> Unit,
+    onOpenZoneCapture: () -> Unit,
     viewModel: DebugToolsViewModel = viewModel(factory = DebugToolsViewModel.Factory),
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -52,6 +53,7 @@ fun DebugToolsRoute(
         onForceSync = viewModel::onForceSync,
         onPostTestItem = viewModel::onPostTestItem,
         onThrowTestException = { viewModel.onThrowTestException() },
+        onOpenZoneCapture = onOpenZoneCapture,
     )
 }
 
@@ -63,6 +65,7 @@ fun DebugToolsScreen(
     onForceSync: () -> Unit,
     onPostTestItem: () -> Unit,
     onThrowTestException: () -> Unit,
+    onOpenZoneCapture: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -88,6 +91,7 @@ fun DebugToolsScreen(
         ) {
             OutlinedButton(onClick = onForceSync) { Text(stringResource(R.string.debug_force_sync)) }
             OutlinedButton(onClick = onPostTestItem) { Text(stringResource(R.string.debug_post_test_item)) }
+            OutlinedButton(onClick = onOpenZoneCapture) { Text(stringResource(R.string.title_zone_capture)) }
             OutlinedButton(onClick = onThrowTestException) { Text(stringResource(R.string.debug_throw_exception)) }
         }
     }
@@ -103,6 +107,7 @@ private fun DebugToolsScreenPreview() {
             onForceSync = {},
             onPostTestItem = {},
             onThrowTestException = {},
+            onOpenZoneCapture = {},
         )
     }
 }

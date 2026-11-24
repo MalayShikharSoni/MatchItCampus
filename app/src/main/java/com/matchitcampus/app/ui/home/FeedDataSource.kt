@@ -8,6 +8,8 @@ import com.matchitcampus.app.domain.matching.SearchHit
 import com.matchitcampus.app.domain.model.CampusZone
 import com.matchitcampus.app.domain.model.Item
 import com.matchitcampus.app.domain.model.ItemType
+import com.matchitcampus.app.location.LatLng
+import com.matchitcampus.app.location.LocationClient
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -26,6 +28,9 @@ interface FeedDataSource {
 
     /** Pull-to-refresh: push pending changes and fetch remote ones. */
     suspend fun refresh()
+
+    /** One location fix for "Near me", or null if none could be had. */
+    suspend fun currentLocation(): LatLng?
 }
 
 /** The real [FeedDataSource]: forwards each call to the repository that owns that data. */
@@ -34,9 +39,11 @@ class RepositoryFeedDataSource(
     private val zoneRepository: ZoneRepository,
     private val matchRepository: MatchRepository,
     private val syncManager: SyncManager,
+    private val locationClient: LocationClient,
 ) : FeedDataSource {
     override fun observeFeed(type: ItemType) = itemRepository.observeFeed(type)
     override fun observeZones() = zoneRepository.observeZones()
     override suspend fun search(query: String, type: ItemType) = matchRepository.search(query, type)
     override suspend fun refresh() = syncManager.syncNow()
+    override suspend fun currentLocation() = locationClient.currentLocation()
 }

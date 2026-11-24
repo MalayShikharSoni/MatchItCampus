@@ -7,6 +7,9 @@ import com.matchitcampus.app.data.repository.PhotoRepository
 import com.matchitcampus.app.data.repository.ZoneRepository
 import com.matchitcampus.app.domain.model.CampusZone
 import com.matchitcampus.app.domain.model.Item
+import com.matchitcampus.app.location.GeocoderClient
+import com.matchitcampus.app.location.LatLng
+import com.matchitcampus.app.location.LocationClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -45,6 +48,12 @@ interface PostItemDataSource {
      * queued for upload too, after the item is saved.
      */
     suspend fun saveItem(item: Item, uploadPhoto: Boolean)
+
+    /** One fresh location fix, or null (no permission, location off, or timed out). */
+    suspend fun currentLocation(): LatLng?
+
+    /** A readable address for [position], or null if none could be found. */
+    suspend fun addressLine(position: LatLng): String?
 }
 
 /** The real [PostItemDataSource], over the repositories. */
@@ -53,6 +62,8 @@ class RepositoryPostItemDataSource(
     private val zoneRepository: ZoneRepository,
     private val authRepository: AuthRepository,
     private val photoRepository: PhotoRepository,
+    private val locationClient: LocationClient,
+    private val geocoderClient: GeocoderClient,
     private val appScope: CoroutineScope,
 ) : PostItemDataSource {
 
@@ -81,4 +92,8 @@ class RepositoryPostItemDataSource(
         itemRepository.saveItem(item)
         if (uploadPhoto) photoRepository.queueUpload(item.id)
     }
+
+    override suspend fun currentLocation(): LatLng? = locationClient.currentLocation()
+
+    override suspend fun addressLine(position: LatLng): String? = geocoderClient.addressLine(position)
 }

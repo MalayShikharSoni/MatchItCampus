@@ -1,6 +1,7 @@
 package com.matchitcampus.app.ui.home
 
 import android.util.Log
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -8,17 +9,22 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.matchitcampus.app.R
 import com.matchitcampus.app.domain.model.CampusZone
 import com.matchitcampus.app.domain.model.Item
 import com.matchitcampus.app.domain.model.ItemType
+import com.matchitcampus.app.location.LatLng
 import com.matchitcampus.app.ui.util.appContainer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
@@ -50,6 +56,10 @@ data class HomeUiState(
     val hasError: Boolean = false,
     /** True when the list is a search result, so the empty state can say "no results". */
     val isFiltered: Boolean = false,
+    /** "Near me": metres to each item with a known position, shown on its card. */
+    val distances: Map<String, Double> = emptyMap(),
+    /** "Near me" is waiting for a location fix. */
+    val isLocating: Boolean = false,
 )
 
 /** The three things the feed Flow can be: still loading, loaded, or failed. */
@@ -99,6 +109,18 @@ class HomeViewModel(
     private val filters = MutableStateFlow(FeedFilters())
     private val isRefreshing = MutableStateFlow(false)
 
+    /**
+     * Where the user was when they turned on "Near me". One fix, not live updates: the list
+     * shouldn't reshuffle under the user's finger as they walk. Tapping the chip again refreshes it.
+     */
+    private val userLocation = MutableStateFlow<LatLng?>(null)
+    private val isLocating = MutableStateFlow(false)
+
+    private val _messages = MutableSharedFlow<Int>()
+
+    /** One-shot snackbar messages (string resources), such as "couldn't get your location". */
+    val messages: SharedFlow<Int> = _messages.asSharedFlow()
+
     /** Bumped by "Try again" to re-subscribe to Room after an error. */
     private val retryCount = MutableStateFlow(0)
 
@@ -132,24 +154,30 @@ class HomeViewModel(
         }
 
     val uiState: StateFlow<HomeUiState> = combine(
-        combine(tab, query, filters) { type, text, activeFilters -> Triple(type, text.trim(), activeFilters) },
+        combine(tab, query, filters, userLocation, isLocating) { type, text, activeFilters, location, locating ->
+            FeedInputs(type, text.trim(), activeFilters, location, locating)
+        },
         feed,
         ranking,
         zones,
         isRefreshing,
-    ) { (type, text, activeFilters), load, currentRanking, zoneList, refreshing ->
+    ) { inputs, load, currentRanking, zoneList, refreshing ->
+        val (type, text, activeFilters, location, locating) = inputs
         // A ranking made for another tab or older text is ignored until the new one arrives.
         val upToDate = currentRanking?.takeIf { it.type == type && it.query == text }
+        val items = if (load is FeedLoad.Loaded) FeedLogic.visibleItems(load.items, activeFilters, upToDate, today(), location) else emptyList()
         HomeUiState(
             tab = type,
             filters = activeFilters,
             zones = zoneList,
-            items = if (load is FeedLoad.Loaded) FeedLogic.visibleItems(load.items, activeFilters, upToDate, today()) else emptyList(),
+            items = items,
             isLoading = load is FeedLoad.Loading,
             isSearching = text.isNotEmpty() && upToDate == null,
             isRefreshing = refreshing,
             hasError = load is FeedLoad.Failed,
             isFiltered = text.isNotEmpty() || activeFilters.isActive,
+            distances = if (activeFilters.sort == FeedSort.NEAR_ME && location != null) FeedLogic.distances(items, location) else emptyMap(),
+            isLocating = locating,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -191,6 +219,35 @@ class HomeViewModel(
 
     fun onRetry() = retryCount.update { it + 1 }
 
+    /**
+     * "Near me" tapped and permission granted: get one fix, then switch the sort. Without a fix
+     * the sort stays as it was and a snackbar explains why.
+     */
+    fun onNearMeGranted(precise: Boolean) {
+        if (isLocating.value) return
+        viewModelScope.launch {
+            isLocating.value = true
+            val location = try {
+                data.currentLocation()
+            } finally {
+                isLocating.value = false
+            }
+            if (location == null) {
+                say(R.string.location_unavailable)
+                return@launch
+            }
+            userLocation.value = location
+            filters.update { it.copy(sort = FeedSort.NEAR_ME) }
+            if (!precise) say(R.string.location_approximate)
+        }
+    }
+
+    fun onNearMeOff() {
+        filters.update { it.copy(sort = FeedSort.NEWEST) }
+    }
+
+    private suspend fun say(@StringRes message: Int) = _messages.emit(message)
+
     /** One search. A failure is logged and gives an empty ranking, so the feed keeps its normal order. */
     private suspend fun search(text: String, type: ItemType): SearchRanking {
         val hits = try {
@@ -203,6 +260,15 @@ class HomeViewModel(
         }
         return SearchRanking(text, type, hits.associate { it.itemId to it.relevance })
     }
+
+    /** The first `combine`'s inputs, named, so the outer `combine` stays within five flows. */
+    private data class FeedInputs(
+        val type: ItemType,
+        val text: String,
+        val filters: FeedFilters,
+        val location: LatLng?,
+        val isLocating: Boolean,
+    )
 
     companion object {
         const val KEY_TAB = "home_tab"
@@ -218,6 +284,7 @@ class HomeViewModel(
                         zoneRepository = container.zoneRepository,
                         matchRepository = container.matchRepository,
                         syncManager = container.syncManager,
+                        locationClient = container.locationClient,
                     ),
                     savedStateHandle = createSavedStateHandle(),
                 )

@@ -21,6 +21,9 @@ enum class FieldError { REQUIRED, TOO_SHORT, TOO_LONG, IN_FUTURE }
  * @property existingHasPhoto when editing: whether the item already has a photo (even if this
  *   phone has no copy of it).
  * @property removeExistingPhoto when editing: the user tapped "Remove photo".
+ * @property latitude the exact spot, from "Use my location" or the pin picker (Phase 6); optional,
+ *   because the zone alone is enough to post. Null together with [longitude].
+ * @property addressLine a readable address for that spot, from reverse geocoding, if one was found.
  */
 @Immutable
 data class PostItemForm(
@@ -35,7 +38,13 @@ data class PostItemForm(
     val existingPhotoPath: String? = null,
     val existingHasPhoto: Boolean = false,
     val removeExistingPhoto: Boolean = false,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val addressLine: String? = null,
 ) {
+    /** True once an exact spot has been chosen. */
+    val hasPin: Boolean get() = latitude != null && longitude != null
+
     /** The photo to show in the form: the new one if any, otherwise the kept existing one. */
     val shownPhotoPath: String? get() = draftPhotoPath ?: existingPhotoPath.takeUnless { removeExistingPhoto }
 
