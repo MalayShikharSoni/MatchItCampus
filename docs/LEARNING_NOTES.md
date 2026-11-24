@@ -438,3 +438,79 @@ examiner might ask, with short answers.
    Mark returned and the claims list with Accept/Reject; anyone else gets "This is mine" on an
    open found item unless they already have a pending or accepted claim, in which case they see
    that claim with a Cancel button.
+
+## Phase 6: Location and map
+
+### Concepts used
+
+- **Runtime permissions with the Activity Result API**: `rememberLauncherForActivityResult(
+  RequestMultiplePermissions())` asks for fine and coarse together, so Android 12+ offers
+  "Precise" or "Approximate". `shouldShowRequestPermissionRationale` decides between showing our
+  rationale `AlertDialog` first and, after a permanent denial, an "Open settings" dialog. All of it
+  lives in one reusable composable, `LocationPermissionGate`.
+- **Fused Location Provider**: `getCurrentLocation` for a one-shot fix (wrapped in
+  `withTimeoutOrNull`), and `requestLocationUpdates` turned into a `Flow` with `callbackFlow`;
+  `awaitClose` removes the updates when the collector stops.
+- **`DisposableEffect` with a lifecycle observer** on the Map tab: ON_START starts live location,
+  ON_STOP and `onDispose` stop it, so the GPS runs only while the map is visible.
+- **Geocoder, old and new API**: the listener-based calls on API 33+, the deprecated blocking
+  calls on `Dispatchers.IO` below that, both behind `suspend` functions. `Geocoder.isPresent()`
+  and empty results are handled by returning null / an empty list.
+- **MapLibre Compose + OpenFreeMap** instead of Google Maps Compose (no API key, no billing).
+  The map's sources and layers are composables declared inside `rememberMapState { }`: GeoJSON
+  sources with `CircleLayer` dots for items and `FillLayer`/`LineLayer` polygons for zones.
+- **Navigation results through `SavedStateHandle`**: the pin picker writes the chosen point into
+  the previous back-stack entry's `savedStateHandle` and pops; the Post screen observes that key.
+- **Location joined with local data**: `ZoneResolver` (nearest real zone containing a point) and
+  "Near me" (feed sorted by haversine distance to each item's pin or zone centre).
+
+### Key files to read first
+
+1. `location/LocationClient.kt`: one-shot fix and the `callbackFlow` of updates.
+2. `ui/components/PermissionGate.kt`: the whole permission flow in one place.
+3. `location/ZoneResolver.kt` and `location/ItemPositions.kt`: small pure functions, unit-tested.
+4. `ui/map/MapScreen.kt` and `MapViewModel.kt`: the map, layers, tap handling and live location.
+5. `ui/map/PinPickerScreen.kt` and the `PinPicker` entries in `ui/navigation/MainNavHost.kt`.
+6. `ui/debug/ZoneCaptureScreen.kt`: how the placeholder zone coordinates get fixed on campus.
+
+### Questions an examiner might ask
+
+1. **Why MapLibre and not Google Maps?**
+   Google Maps needs an API key tied to a billing account. MapLibre is open source and
+   OpenFreeMap serves free OpenStreetMap tiles with no key. The concepts (a map composable,
+   camera, markers/layers, click handling) are the same as Google Maps Compose.
+
+2. **What happens if the user picks "Approximate location"?**
+   Coarse is still a grant, so everything works; the fix is only accurate to roughly a few
+   hundred metres up to about 3 km. The app shows a snackbar saying the position may be off. Zone Capture
+   refuses approximate location, because a zone centre must be precise.
+
+3. **How do you know the user denied permission permanently?**
+   After a denial, if `shouldShowRequestPermissionRationale` is false for both permissions, the
+   system won't show its dialog again. Then the only way is the app's Settings page, which we
+   open with `ACTION_APPLICATION_DETAILS_SETTINGS`.
+
+4. **Why `callbackFlow` for location updates, and what does `awaitClose` do?**
+   Play services delivers fixes through a callback. `callbackFlow` lets the callback `trySend`
+   each fix into a Flow. `awaitClose` keeps the flow open until the collector is cancelled, then
+   runs our cleanup (`removeLocationUpdates`), so updates can never leak.
+
+5. **Why are placeholder zones never suggested?**
+   They all sit at the made-up campus centre, so "you're in Block 34" would be a guess. Only
+   zones captured on campus (`isPlaceholder = false`) can be suggested; all zones can still be
+   picked by hand.
+
+6. **How does the pin picker work, and how does the result get back?**
+   The pin is fixed at the map's centre; dragging the map moves the spot under it, and a tap
+   animates the camera there. "Use this spot" reads the camera centre, stores it as a
+   `DoubleArray` in the Post entry's `SavedStateHandle` and pops. The Post screen observes that
+   key, hands the point to its ViewModel once, then clears it.
+
+7. **Why draw zones as polygons instead of circle layers?**
+   A circle layer's radius is in screen pixels, so it would stay the same size while zooming.
+   A polygon of 48 points around the real radius (in metres) grows and shrinks with the map.
+
+8. **How does "Near me" sort the feed, and what if an item has no location?**
+   One location fix when the chip is turned on (no live updates, so the list doesn't jump),
+   then `FeedLogic` sorts by haversine distance to the item's pin, or its real zone's centre.
+   Items with no position go last. A search ranking still wins over distance.
