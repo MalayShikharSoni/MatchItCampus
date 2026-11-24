@@ -340,3 +340,101 @@ examiner might ask, with short answers.
    Embedding takes time. If the user edits the item meanwhile, the vector belongs to the old
    text. The `WHERE updatedAt = :updatedAt` makes the update do nothing in that case, and the
    edited row is embedded again on the next pass.
+
+## Phase 5: Core UI
+
+### Concepts used
+
+- **MVVM with unidirectional data flow**: every screen has a `XxxRoute` (collects state, owns
+  the ViewModel, handles one-shot events) and a stateless `XxxScreen(state, callbacks)` that only
+  draws. Events go up as lambdas (or one `onAction(PostItemAction)`), state comes down.
+- **`UiState` data classes as `StateFlow`**, built with `combine(...)` and `stateIn(viewModelScope,
+  WhileSubscribed(5_000), initial)`. The 5 s keeps the flows alive across a rotation but stops
+  them when the user really leaves.
+- **One-shot events as `SharedFlow`** (snackbars, "navigate after saving"), collected in a
+  `LaunchedEffect(Unit)`. `rememberUpdatedState` keeps the long-lived collector calling the
+  newest `onSaved` / `onBack` lambda.
+- **Flow operators for search**: `debounce(300)` → `distinctUntilChanged()` → `mapLatest { }`
+  (an old search is cancelled when new text arrives). `flatMapLatest` switches the feed when the
+  tab or the signed-in user changes.
+- **`SavedStateHandle`**: the feed's tab and query, and every field of the Post draft, survive
+  process death. Navigation arguments arrive in the same handle (`toRoute<Routes.ItemDetail>()`,
+  or the `editItemId` key).
+- **Text fields read their value straight from a `StateFlow` the ViewModel updates
+  synchronously** (search text, Post form, claim sheet), never through `combine`, which adds an
+  async step and drops letters when typing fast.
+- **Interfaces for testable ViewModels**: `FeedDataSource` and `PostItemDataSource` list only what
+  the screen needs; the real versions forward to the repositories; tests can pass fakes.
+- **Material 3**: `PrimaryTabRow`, `FilterChip` + `DropdownMenu`, `SegmentedButton`,
+  `ExposedDropdownMenuBox`, `DatePickerDialog` with `SelectableDates`, `ModalBottomSheet`
+  (zone picker, claim sheet), `AlertDialog` confirmations, `PullToRefreshBox`, `BadgedBox`,
+  `ExtendedFloatingActionButton` that collapses on scroll.
+- **Compose performance**: `key` + `contentType` in lazy lists, `derivedStateOf` for the FAB,
+  `@Immutable` UI state, `remember` for the detail callbacks object.
+- **Animations with a purpose**: `Crossfade` between loading/empty/error/list,
+  `AnimatedVisibility` for the verification question and the "why this match" lines,
+  `animateFloatAsState` for the score bar, `animateContentSize` on item cards.
+- **Photos**: system Photo Picker (`PickVisualMedia`, no permission), `ImageDecoder` /
+  `BitmapFactory` + `inSampleSize` to shrink to ≤ 800 px, JPEG quality steps to ~150 KB,
+  stored as a Firestore Blob in `itemPhotos/{id}`, uploaded after the item, downloaded on demand,
+  shown with Coil's `AsyncImage`.
+- **Accessibility**: a transparent click overlay hides a field from TalkBack, so the overlay gets
+  `Role.Button` and a `contentDescription` with label and value; radio options use
+  `selectableGroup` + `selectable(role = RadioButton)`.
+
+### Files to read first
+
+1. `ui/home/HomeViewModel.kt` (the search Flow chain, `combine`, SavedStateHandle) and `FeedFilters.kt`
+2. `ui/post/PostItemViewModel.kt` (draft in SavedStateHandle, validation, save + photo) and `PostItemForm.kt`
+3. `ui/detail/ItemDetailViewModel.kt` (matches joined with items, who-can-do-what, the claim) and `MatchExplanation.kt`
+4. `ui/claims/ClaimsViewModel.kt`, `ui/navigation/ShellViewModel.kt` + `MainShell.kt` (badge, snackbar)
+5. `data/photo/PhotoStore.kt`, `data/repository/PhotoRepository.kt`, the photo loop in `SyncManager.pushPending`
+6. `ui/components/` (ItemCard, StatusChip, MatchScoreBar, ZonePickerSheet, ClaimCard, StateViews)
+7. Tests: `FeedLogicTest`, `PostItemValidatorTest`, `MatchExplanationTest`, `PhotoSizingTest`
+
+### Likely viva questions
+
+1. **Why split each screen into a Route and a Screen?**
+   The Screen is stateless: it takes plain data and lambdas, so it can be previewed and
+   UI-tested with fake state. Only the Route knows about the ViewModel, navigation and
+   Activity-level things like the Photo Picker launcher. That is state hoisting.
+
+2. **Walk through what happens when I type "earphones" in the search box.**
+   Each keystroke is saved to `SavedStateHandle`, so the box updates at once. `debounce(300)`
+   waits for a 300 ms pause, `distinctUntilChanged` skips repeats, and `mapLatest` embeds the
+   query and ranks the tab's items (cancelling an older search still running). `combine` merges
+   the ranking with the feed and filters into a new `HomeUiState`, and Compose redraws the list.
+
+3. **How does the Post draft survive the app being killed?**
+   Every change is copied into `SavedStateHandle`, which Android stores with the Activity's
+   saved state. After process death the ViewModel is recreated and `restoreForm()` reads the
+   fields back. The picked photo is already a compressed file in `filesDir`, and only its path is
+   saved. We tested this with `adb shell am kill`.
+
+4. **Why are snackbars and "navigate after save" a SharedFlow and not part of UiState?**
+   They should happen once. If they were state, rotating the screen would show the snackbar
+   again or navigate twice. A SharedFlow with no replay delivers each event to the collector
+   that is active at that moment.
+
+5. **How do photos work without Cloud Storage?**
+   The picked image is shrunk to 800 px and compressed to about 150 KB, then stored as bytes
+   (a Blob) in a Firestore document, `itemPhotos/{itemId}`, separate from `items` so the feed
+   never downloads images. The rules allow writes only by the item's owner and only once the item
+   exists, so sync uploads the item first. Others download a photo only when they open the item.
+
+6. **Why is the photo upload queue in DataStore and not a column?**
+   Adding a column would change the database schema (a migration). The queue is just a small
+   set of item ids, it must survive restarts, and it shouldn't re-upload the photo on every status
+   change. DataStore fits that, and SyncManager watches its size to trigger a push.
+
+7. **Who changes what when a claim is accepted?**
+   The finder's phone, in one Room transaction: claim ACCEPTED, found item RETURNED, other
+   pending claims REJECTED. Sync pushes those (the finder owns them). The claimant's phone sees
+   the accepted claim through its listener and marks its own linked lost item RETURNED. Each user
+   only writes their own documents, which is what the security rules allow.
+
+8. **How do you decide what the item screen shows to whom?**
+   `isOwner` compares the item's `ownerId` with the signed-in uid. The owner gets Edit, Delete,
+   Mark returned and the claims list with Accept/Reject; anyone else gets "This is mine" on an
+   open found item unless they already have a pending or accepted claim, in which case they see
+   that claim with a Cancel button.

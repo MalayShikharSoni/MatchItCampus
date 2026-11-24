@@ -15,14 +15,14 @@ From Phase 2 on, all work is committed and pushed directly to `main` (see the
 | 2 Room data layer | Dev B (anugyajais) | `main` | — | yes |
 | 3 Firebase + sync | Dev A (MalayShikharSoni) | `main` | — | yes |
 | 4 Matching engine | Dev B (anugyajais) | `main` | — | yes |
-| 5 Core UI | Dev A | `main` | — | |
+| 5 Core UI | Dev A (MalayShikharSoni) | `main` | — | yes |
 | 6 Location + map | Dev B | `main` | — | |
 | 7 Polish + migration | Dev A | `main` | — | |
 | 8 Tests + docs | Dev B | `main` | — | |
 
 ## 2. Current state
 
-**What works (end of Phase 4):**
+**What works (end of Phase 5):**
 - The project builds (`./gradlew assembleDebug`) and unit tests pass (`./gradlew testDebugUnitTest`).
 - Package / applicationId `com.matchitcampus.app`, minSdk 26, compile/target SDK 37.
 - `MatchItApp` (Application) builds an `AppContainer` holding the app-wide `applicationScope`.
@@ -31,7 +31,7 @@ From Phase 2 on, all work is committed and pushed directly to `main` (see the
 - Navigation shell with type-safe routes (`ui/navigation/Routes.kt`):
   - Signed out: real Login and Register screens (Firebase Auth email/password, Phase 3).
   - Signed in: Home, Map, My posts, Claims, Profile tabs, plus Post item, Item detail
-    (receives `itemId`) and Debug tools (debug builds only). All screens are placeholders.
+    (receives `itemId`) and Debug tools (debug builds only). Only Map is still a placeholder (Phase 6).
   - Bottom `NavigationBar` under 600 dp width, side `NavigationRail` from 600 dp
     (`navigationSuiteTypeFor`, unit-tested).
 - MediaPipe model `app/src/main/assets/universal_sentence_encoder.tflite` is committed and used by
@@ -48,7 +48,6 @@ From Phase 2 on, all work is committed and pushed directly to `main` (see the
   Writes are marked `PENDING_UPLOAD` / `PENDING_DELETE`. Nothing reaches Firestore yet.
 - Tests (Phase 2): JVM unit tests (`./gradlew testDebugUnitTest`) and instrumented tests on an
   in-memory DB (`./gradlew connectedDebugAndroidTest`).
-  The feed, map, posts and claims screens are still Phase 1 placeholders and don't read the database yet.
 - **Auth (Phase 3):** `AuthRepository` wraps Firebase Auth. `authState` is a `StateFlow<AuthUser?>`
   built with `callbackFlow` + `AuthStateListener`. `RootViewModel` switches between the auth graph
   and the main graph from it. Registration creates `users/{uid}` and caches the profile in Room.
@@ -77,9 +76,42 @@ From Phase 2 on, all work is committed and pushed directly to `main` (see the
     against the open items of the opposite type and stores every pair **in both directions**.
     `observeMatches(itemId)` gives the best 5 live matches (Room Flow); `search(query, type)` ranks
     a feed tab. Logcat: `tag:MatchIt/MatchRepository` (per-component scores of the best matches).
-  - Nothing in the UI shows matches or search yet (Phase 5).
-- Tests: 95 JVM unit tests and 54 instrumented tests, including the real-model sanity test in
-  `ml/TextEmbedderHelperTest` (both suites green on 2026-11-24, instrumented on AVD `Pixel_9_Pro`).
+  - The UI shows matches and search from Phase 5 on.
+- Tests: 126 JVM unit tests (Phase 5 added feed filtering, form validation, match explanations,
+  photo sizing, formatters and My posts grouping) and 54 instrumented tests, including the
+  real-model sanity test in `ml/TextEmbedderHelperTest` (both suites green on 2026-11-24, instrumented
+  on AVD `Pixel_10_Pro`).
+- **Core UI (Phase 5).** Every screen has a `XxxRoute` (ViewModel, events) and a stateless
+  `XxxScreen`. ViewModels expose `UiState` as `StateFlow` and one-shot events as `SharedFlow`.
+  - **Home** (`ui/home/`): Lost/Found tabs, semantic search (`debounce(300)` → `distinctUntilChanged`
+    → `mapLatest`), filter chips (category, zone, last 7/30 days, status), pull-to-refresh
+    (`SyncManager.syncNow`), loading/empty/error states. Tab and query are in `SavedStateHandle`.
+  - **Post item** (`ui/post/`): create and edit (`Routes.PostItem(editItemId)`), Lost/Found
+    segmented button, category dropdown, date picker (no future dates), zone bottom sheet,
+    verification question (FOUND only), photo. Every field is in `SavedStateHandle` (checked with
+    `am kill`). Post is disabled until valid; errors show under touched fields; a "Still needed" line
+    lists what's missing. After posting it opens the new item.
+  - **Item detail** (`ui/detail/`): photo, fields, status, top-5 matches with an animated score bar
+    and an expandable "Why this match". Owner: Edit, Delete (confirm), Mark returned, claims with
+    Accept (confirm) / Reject. Others: "This is mine" claim sheet (answer, message, link to one of my
+    open lost posts, preselected from the matches), or my claim with Cancel. Recomputes the item's
+    matches on open and downloads its photo if missing.
+  - **Claims** (`ui/claims/`): "On my items" / "My claims" tabs with Accept/Reject/Cancel.
+    `MainShell` shows a badge with pending incoming claims and a snackbar ("View") for
+    `SyncManager.events`.
+  - **My posts** (`ui/myposts/`): grouped by status under sticky headers, ⋮ menu with Edit,
+    Mark returned, Delete.
+  - **Profile**: About section (on-device matching, map attribution, version). Debug tools adds
+    "Throw test exception" (`DebugTestException`).
+  - **Photos**: `data/photo/PhotoStore` (Photo Picker → ≤ 800 px JPEG, ~150 KB target, 900 KB cap,
+    files `filesDir/photos/{itemId}_{time}.jpg`), `PhotoRemoteDataSource` (`itemPhotos/{id}` Blob),
+    `PhotoRepository` (upload queue in DataStore, download on open). `SyncManager.pushPending`
+    uploads queued photos after their item is SYNCED; deleting an item also deletes its photo document.
+- **Checked on the emulator against real Firebase (2026-11-24, AVD `Pixel_10_Pro`):** the full demo
+  from the brief (Riya posts FOUND, Aman posts a differently worded LOST and sees it top at 94% with
+  the breakdown, claims it, Riya gets the badge and accepts, both items RETURNED), semantic search
+  reordering, editing, deleting, a photo uploaded by one account and downloaded on a fresh install by
+  the other, and the Post draft surviving process death.
 
 **How to run:** open the project root in Android Studio, make sure `app/google-services.json`
 exists (see section 5), then Run ▶ on an emulator or device.
@@ -225,6 +257,38 @@ exists (see section 5), then Run ▶ on an emulator or device.
   items drop out without recomputing, and works out `usedFallback` in SQL, so the v1 `matches`
   table needed no new column (DB stays v1, no migration).
 
+- **Phase 5, Coil 3.6.3** (re-checked on Maven Central 2026-11-24, unchanged since Phase 0). Only
+  `coil-compose`: photos are local files, so no network module.
+- **Phase 5, ViewModels for Home and Post depend on small interfaces** (`FeedDataSource`,
+  `PostItemDataSource`) with real implementations that forward to the repositories, so Phase 8 can
+  unit-test them with fakes. Other ViewModels take the repositories directly.
+- **Phase 5, text fields read straight from a `StateFlow` that the ViewModel updates
+  synchronously** (`HomeViewModel.query`, `PostItemViewModel.form`, `ItemDetailViewModel.claimDraft`),
+  not through the `combine`d `uiState`. Going through `combine` adds an async step, which can drop or
+  misplace letters when typing fast.
+- **Phase 5, location on the Post screen is the zone only** (bottom sheet). `latitude`/`longitude`
+  stay null until Phase 6 adds "Use my location" and the pin picker, so matching uses the zone
+  rules (same zone = 1, otherwise 0.5 unknown). A zone is required; "Other / Not sure" exists for
+  people who don't know.
+- **Phase 5, `eventDate` is midnight UTC of the chosen day** (what the M3 date picker returns) and is
+  always read back with UTC (`ui/util/Formatters`). "Today" is the phone's calendar day.
+- **Phase 5, photo files are named `{itemId}_{time}.jpg`** instead of the brief's `{itemId}.jpg`.
+  Coil 3 caches file images by path only, so a replaced photo with the same name would keep
+  showing the old picture; a new name per version avoids that. Old files of the item are deleted.
+- **Phase 5, the photo upload queue is a set of item ids in DataStore** (`SyncPreferences`), not a
+  Room column, so the schema stays v1 and a status change doesn't re-upload the photo.
+  `SyncManager` uploads a queued photo only once its item is SYNCED (the rules need the item first).
+- **Phase 5, Post form rules:** title 3–60 chars, description required (≤ 500), category and zone
+  required, no future dates, verification question required for FOUND (≤ 120).
+- **Phase 5, claims:** one live claim per person per item (the button hides while my claim is
+  PENDING or ACCEPTED; a rejected or cancelled claimant may claim again). Accepting from the item
+  screen or the Claims tab asks for confirmation.
+- **Phase 5, fixed a race in the Phase 4 `MatchRepositoryTest`:** its `tearDown` cancelled the
+  watcher's scope and closed the database straight away, so a query still running crashed the
+  test process on `Pixel_10_Pro` (only 41 of 54 tests ran). It now uses `cancelAndJoin()` first.
+- **Phase 5, Item detail's mini map is left for Phase 6** (MapLibre is added there); the screen shows
+  the zone name and address line for now.
+
 ### Library versions
 
 Checked on Google Maven / Maven Central on 2026-11-05. "In use" means it's already in
@@ -253,7 +317,7 @@ MapLibre Compose, which is pre-1.0.
 | MediaPipe tasks-text | 1.2.3 (re-checked 2026-11-24) | in use (Phase 4) |
 | Play Services Location | 21.4.0 | Phase 6 |
 | MapLibre Compose | 0.20.0 (minSdk 24) | Phase 6 |
-| Coil 3 (`io.coil-kt.coil3:coil-compose`) | 3.6.3 | Phase 5 |
+| Coil 3 (`io.coil-kt.coil3:coil-compose`) | 3.6.3 (re-checked 2026-11-24) | in use (Phase 5) |
 | Turbine | 1.2.1 | in use (androidTest) |
 | JUnit 4 / AndroidX test JUnit / Espresso | 4.13.2 / 1.3.0 / 3.7.0 | in use |
 | AndroidX test core / runner | 1.7.0 / 1.7.0 | in use (androidTest) |
@@ -267,18 +331,27 @@ MapLibre Compose, which is pre-1.0.
 - `ZoneSeedParserTest.realSeedFile_isStillAllPlaceholders` must be updated once real zone
   coordinates are captured (Phase 6).
 - ~~Deleting an item that was never uploaded still waits for sync.~~ Resolved in Phase 3 (see decisions).
-- `SyncManager.events` (a `SharedFlow`, e.g. "new claim on your item") is emitted but not shown yet.
-  Phase 5 should collect it with `LaunchedEffect` and show a snackbar.
-- Photos (`itemPhotos/{itemId}`) aren't uploaded yet (Phase 5). The rules require the item document
-  to exist first, so upload the item, then the photo.
+- ~~`SyncManager.events` is emitted but not shown yet.~~ Resolved in Phase 5 (snackbar in `MainShell`).
+- ~~Photos aren't uploaded yet.~~ Resolved in Phase 5 (see decisions).
 - Last-write-wins uses phone clocks, so two phones with very different clocks can pick the wrong
   winner. It's acceptable because each document normally has a single writer (its owner).
 - If someone logs out with unsynced changes and another account logs in on the same phone, the
   old rows stay `PENDING_UPLOAD` (they're skipped, because the rules would reject them).
-- Matches aren't recomputed when a remote change keeps the text (e.g. a moved pin or a new date),
-  because the embedding is kept. The item detail screen (Phase 5) should call
-  `MatchRepository.recomputeMatchesFor(itemId)` when it opens (cheap: one item vs. the open pool).
+- Matches aren't recomputed automatically when a remote change keeps the text (e.g. a moved pin or
+  a new date). Partly resolved in Phase 5: the item screen calls `recomputeMatchesFor(itemId)` when it
+  opens, so what you look at is always fresh.
 - `MatchWeights` are reasoned starting values, not tuned. Revisit with the Phase 7 demo data.
+- **Photos, Phase 5 limitations:** if an owner *replaces* a photo, other phones that already
+  downloaded the old one keep showing it (they only download when they have no copy). Removing a
+  photo while editing leaves the old `itemPhotos` document in Firestore (harmless, just orphaned).
+  On Android 8 (API 26–27) photos aren't rotated by their EXIF tag, so a few may appear sideways.
+- **Phase 8 ViewModel tests:** ViewModels log with `android.util.Log`, which throws in plain JVM
+  tests. Add `testOptions { unitTests.isReturnDefaultValues = true }` to `app/build.gradle.kts`
+  (or avoid the logging paths) when writing the `HomeViewModel` / `PostItemViewModel` tests.
+- The debug APK is about 169 MB, mostly MediaPipe's native libraries for every CPU architecture.
+  Phase 7 could add ABI splits or `ndk { abiFilters }` for release builds.
+- The bottom navigation bar stays visible on the Post and Item screens (the Phase 1 shell puts the
+  whole NavHost inside it). Fine for now; Phase 7 can hide it on non-tab screens if wanted.
 - The real-model sanity test needs a device/emulator (`./gradlew connectedDebugAndroidTest`),
   because MediaPipe runs native code. The JVM tests use a fake `Embedder`.
 
@@ -292,6 +365,11 @@ Things each laptop needs that are **not** in the repo:
 - Dev B's laptop: Android Studio 2025.3 (build 253), hence AGP 9.2.0. AVD `Pixel_9_Pro` is used
   for the connected tests.
 - The `.claude/` folder in the project root (shared directly, git-ignored).
+- **Dev A's emulator (`Pixel_10_Pro`):** start it with `-no-snapshot-load` (its saved snapshot came
+  from the disk-full crash and leaves adb "offline"). If the app says it can't reach the server,
+  check Wi-Fi in the emulator (it was found switched off once). Its `/data` is nearly full
+  (~700 MB free): if `adb install` fails with INSUFFICIENT_STORAGE, run `adb shell pm trim-caches 4G`
+  or wipe the AVD's data in Device Manager.
 - **Dev A's network has Sophos SSL inspection.** Now and then it replaces Google's certificate with
   its own, which Java (Gradle) and Node don't trust, so downloads fail with `PKIX path building
   failed`. Retrying works because Gradle caches what it already downloaded. A permanent fix is to
@@ -299,19 +377,21 @@ Things each laptop needs that are **not** in the repo:
 
 ## 6. Next phase
 
-**Phase 5: Core UI**, driven by **Dev A** (MalayShikharSoni), working directly on `main`.
-- `git checkout main && git pull` first. Phase 4 is on `main`.
-- Re-check Coil 3 (3.6.3 on 2026-11-05) before adding it for photos.
-- Data the screens can use now (all from `AppContainer`):
-  - Feed: `ItemRepository` Flows; search with `matchRepository.search(query, type)` from a
-    debounced query Flow (`debounce` + `mapLatest`). An empty query returns an empty list, so show
-    the normal feed then.
-  - Item detail: `matchRepository.observeMatches(itemId)` (best 5, `MatchResult` with per-component
-    scores, `distanceMeters`, `daysApart`, `usedFallback`). Call `recomputeMatchesFor(itemId)` on open
-    (see section 4). New posts are embedded and matched automatically a moment after saving, so the
-    list may be empty for a second; the Flow fills it in.
-  - Claims: the rules are already in `ClaimRepository` (Phase 2/3 decisions).
-- Collect `SyncManager.events` and show a snackbar (section 4).
-- Photo upload: upload the item document first, then `itemPhotos/{itemId}` (rules require it).
-- Phase 8's required ViewModel tests are for PostItem and Home, so keep those ViewModels testable
-  (pass repositories in through factories, no Android types in state).
+**Phase 6: Location and map**, driven by **Dev B**, working directly on `main`.
+- `git checkout main && git pull` first. Phase 5 is on `main`.
+- Re-check MapLibre Compose (0.20.0 on 2026-11-05, pre-1.0) and Play Services Location before adding them.
+- Where Phase 6 plugs into the Phase 5 UI:
+  - **Post screen** (`ui/post/PostItemScreen.kt`, `PostItemViewModel`): the location section is just the
+    zone field today. Add "Use my location" (one-shot fused location → reverse geocode →
+    `ZoneResolver.nearestZone` suggests a zone) and the pin picker. `PostItemForm` needs
+    `latitude`/`longitude`/`addressLine` fields (and matching `SavedStateHandle` keys);
+    `buildItem()` currently leaves them null for new items and keeps them on edit.
+  - **Item detail** (`ui/detail/ItemDetailScreen.kt`, `ItemHeader`): add the mini map with one marker.
+  - **Map tab** (`ui/map/MapScreen.kt`) is still a `PlaceholderScreen`. `ItemRepository.observeOpenItems()`
+    gives the markers; tapping one can reuse `ItemCard` in a bottom sheet and navigate with
+    `Routes.ItemDetail`.
+  - **"Near me" sort** belongs in `HomeViewModel` / `FeedLogic.visibleItems` (add a sort option to
+    `FeedFilters`), with distances from `GeoUtils.haversineMeters`.
+  - **Zone Capture** goes in Debug tools (`ui/debug/`), next to "Throw test exception".
+  - `ZonePickerSheet` (`ui/components/`) is reusable. `PermissionGate` from the brief's component list
+    isn't built yet: it belongs with the location permission flow.
