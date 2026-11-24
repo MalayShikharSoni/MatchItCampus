@@ -1,13 +1,31 @@
 package com.matchitcampus.app.ui.navigation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.matchitcampus.app.R
+import com.matchitcampus.app.data.sync.SyncEvent
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -23,10 +41,36 @@ import androidx.navigation.compose.rememberNavController
  * of items. We choose which one with [navigationSuiteTypeFor], from the current window
  * size, so rotating the phone or running on a tablet switches automatically.
  *
+ * It also shows a badge with the number of pending incoming claims on the Claims tab, and a
+ * snackbar when a new claim arrives (from `SyncManager.events`), whichever tab is open.
  */
 @Composable
-fun MainShell(modifier: Modifier = Modifier) {
+fun MainShell(
+    modifier: Modifier = Modifier,
+    viewModel: ShellViewModel = viewModel(factory = ShellViewModel.Factory),
+) {
     val navController = rememberNavController()
+    val pendingClaims by viewModel.pendingIncomingClaims.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+
+    // Collect one-shot sync events for as long as the signed-in frame is on screen.
+    // LaunchedEffect cancels this collection automatically when MainShell leaves (logout).
+    LaunchedEffect(Unit) {
+        viewModel.syncEvents.collect { event ->
+            when (event) {
+                is SyncEvent.NewIncomingClaim -> {
+                    val result = snackbarHostState.showSnackbar(
+                        message = context.getString(R.string.snackbar_new_claim, event.claimantName),
+                        actionLabel = context.getString(R.string.action_view),
+                        duration = SnackbarDuration.Long,
+                    )
+                    if (result == SnackbarResult.ActionPerformed) navController.navigateToTab(TopLevelDestination.CLAIMS)
+                }
+            }
+        }
+    }
+
     // Observing the back stack as State makes this recompose whenever the screen changes,
     // so the highlighted tab always matches what is on screen.
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -42,13 +86,30 @@ fun MainShell(modifier: Modifier = Modifier) {
                 item(
                     selected = currentDestination.isInTab(destination),
                     onClick = { navController.navigateToTab(destination) },
-                    icon = { Icon(destination.icon, contentDescription = null) },
+                    icon = {
+                        if (destination == TopLevelDestination.CLAIMS && pendingClaims > 0) {
+                            BadgedBox(badge = { Badge { Text("$pendingClaims") } }) {
+                                Icon(destination.icon, contentDescription = null)
+                            }
+                        } else {
+                            Icon(destination.icon, contentDescription = null)
+                        }
+                    },
                     label = { Text(stringResource(destination.labelRes)) },
                 )
             }
         },
     ) {
-        MainNavHost(navController = navController)
+        Box(Modifier.fillMaxSize()) {
+            MainNavHost(navController = navController)
+            // Lifted above the bottom of the screen so it doesn't sit on top of a screen's FAB.
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 80.dp),
+            )
+        }
     }
 }
 

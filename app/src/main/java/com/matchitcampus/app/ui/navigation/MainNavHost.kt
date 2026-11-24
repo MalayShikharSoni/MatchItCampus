@@ -5,11 +5,10 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.toRoute
 import com.matchitcampus.app.BuildConfig
-import com.matchitcampus.app.ui.claims.ClaimsScreen
+import com.matchitcampus.app.ui.claims.ClaimsRoute
 import com.matchitcampus.app.ui.debug.DebugToolsRoute
-import com.matchitcampus.app.ui.detail.ItemDetailScreen
+import com.matchitcampus.app.ui.detail.ItemDetailRoute
 import com.matchitcampus.app.ui.home.HomeRoute
 import com.matchitcampus.app.ui.map.MapScreen
 import com.matchitcampus.app.ui.myposts.MyPostsScreen
@@ -43,7 +42,9 @@ fun MainNavHost(
         }
         composable<Routes.Map> { MapScreen() }
         composable<Routes.MyPosts> { MyPostsScreen() }
-        composable<Routes.Claims> { ClaimsScreen() }
+        composable<Routes.Claims> {
+            ClaimsRoute(onOpenItem = { itemId -> navController.navigate(Routes.ItemDetail(itemId)) })
+        }
         composable<Routes.Profile> {
             ProfileRoute(
                 showDebugTools = BuildConfig.DEBUG,
@@ -68,10 +69,13 @@ fun MainNavHost(
                 },
             )
         }
-        composable<Routes.ItemDetail> { backStackEntry ->
-            // toRoute() rebuilds the typed route object, so itemId is a String, not a raw argument.
-            val route = backStackEntry.toRoute<Routes.ItemDetail>()
-            ItemDetailScreen(itemId = route.itemId, onBack = goBack)
+        composable<Routes.ItemDetail> {
+            // The ViewModel reads itemId itself, with toRoute() on its SavedStateHandle.
+            ItemDetailRoute(
+                onBack = goBack,
+                onOpenItem = { itemId -> navController.navigate(Routes.ItemDetail(itemId)) },
+                onEdit = { itemId -> navController.navigate(Routes.PostItem(editItemId = itemId)) },
+            )
         }
 
         // Release builds never register this route, so the debug screen cannot be reached there.

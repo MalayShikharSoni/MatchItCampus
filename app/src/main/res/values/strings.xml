@@ -71,7 +71,6 @@
     <!-- Phase 1 placeholder text (replaced as each screen is built) -->
     <string name="placeholder_body">This screen is a placeholder and will be built in a later phase.</string>
     <string name="placeholder_debug_tools">Open debug tools</string>
-    <string name="placeholder_item_id">Item id: %1$s</string>
 
     <!-- Shared labels (Phase 5) -->
     <string name="type_lost">Lost</string>
@@ -170,4 +169,87 @@
     <string name="post_error_signed_out">You\'re signed out. Log in again to post.</string>
     <string name="post_error_item_gone">This item no longer exists.</string>
     <string name="post_error_save_failed">Couldn\'t save the item. Please try again.</string>
+
+
+    <!-- Item detail (Phase 5) -->
+    <string name="action_edit">Edit</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_mark_returned">Mark as returned</string>
+    <string name="action_this_is_mine">This is mine</string>
+    <string name="action_cancel_claim">Cancel claim</string>
+    <string name="action_accept">Accept</string>
+    <string name="action_reject">Reject</string>
+    <string name="action_send_claim">Send claim</string>
+    <string name="detail_gone_title">This item is gone</string>
+    <string name="detail_gone_body">It was deleted, or it hasn\'t reached this phone yet.</string>
+    <string name="detail_location_unknown">Not given</string>
+    <string name="detail_posted_by">Posted by</string>
+    <string name="detail_posted_by_you">You</string>
+    <string name="detail_photo_loading">Loading photoâ€¦</string>
+    <string name="detail_photo_unavailable">The photo couldn\'t be loaded. It will appear once you\'re online.</string>
+    <string name="detail_matches_title">Possible matches</string>
+    <string name="detail_matches_subtitle">Best first. Tap a match to open it.</string>
+    <string name="detail_matches_empty">No matches yet. New posts are checked against this one automatically.</string>
+    <string name="detail_matches_paused">Matching stops once an item is claimed or returned.</string>
+    <string name="detail_why_match">Why this match</string>
+    <string name="detail_marked_returned">Marked as returned</string>
+    <string name="detail_action_failed">That didn\'t work. Please try again.</string>
+    <string name="detail_confirm_delete_title">Delete this post?</string>
+    <string name="detail_confirm_delete_body">It will be removed for everyone. This can\'t be undone.</string>
+    <string name="detail_confirm_returned_title">Mark as returned?</string>
+    <string name="detail_confirm_returned_body">The item will close and stop appearing in matches.</string>
+    <plurals name="detail_claims_title">
+        <item quantity="one">%1$d claim</item>
+        <item quantity="other">%1$d claims</item>
+    </plurals>
+    <string name="why_text">Description similarity %1$d%%</string>
+    <string name="why_text_keywords">Shared words %1$d%% (rough estimate)</string>
+    <string name="why_same_category">Same category</string>
+    <string name="why_category_unclear">One of them is in \"Other\"</string>
+    <string name="why_different_category">Different category</string>
+    <string name="why_same_zone">Both at %1$s</string>
+    <string name="why_distance">About %1$s apart</string>
+    <string name="why_different_zones">Different places on campus</string>
+    <string name="why_location_unknown">Exact place not known</string>
+    <string name="why_same_day">Same day</string>
+    <plurals name="why_days_apart">
+        <item quantity="one">%1$d day apart</item>
+        <item quantity="other">%1$d days apart</item>
+    </plurals>
+
+    <!-- Claims (Phase 5) -->
+    <string name="claim_unknown_item">An item not on this phone yet</string>
+    <string name="claim_from">From %1$s</string>
+    <string name="claim_found_by">Found by %1$s</string>
+    <string name="claim_question">Q: %1$s</string>
+    <string name="claim_answer">Answer: %1$s</string>
+    <string name="claim_message">Message: %1$s</string>
+    <string name="claim_linked_lost">Their lost post: %1$s</string>
+    <string name="claim_linked_lost_mine">Your lost post: %1$s</string>
+    <string name="claim_sheet_title">Claim this item</string>
+    <string name="claim_sheet_body">The finder sees your answer and decides whether it\'s yours.</string>
+    <string name="claim_field_answer">Your answer</string>
+    <string name="claim_field_message">Message to the finder (optional)</string>
+    <string name="claim_link_title">Link your lost post (optional)</string>
+    <string name="claim_link_none">Don\'t link a post</string>
+    <string name="claim_error_answer_required">Answer the finder\'s question</string>
+    <string name="claim_error_answer_long">Keep the answer under 200 characters</string>
+    <string name="claim_error_message_long">Keep the message under 300 characters</string>
+    <string name="claim_sent">Claim sent. The finder will see it the next time they open the app.</string>
+    <string name="claim_send_failed">Couldn\'t send the claim. Please try again.</string>
+    <string name="claim_accepted">Claim accepted. The item is marked as returned.</string>
+    <string name="claim_rejected">Claim rejected</string>
+    <string name="claim_cancelled">Claim cancelled</string>
+    <string name="claim_no_longer_pending">That claim has already been decided.</string>
+    <string name="claim_confirm_accept_title">Accept this claim?</string>
+    <string name="claim_confirm_accept_body">The item will be marked as returned to %1$s, and any other claims on it will be rejected.</string>
+
+    <string name="claims_tab_incoming">On my items</string>
+    <string name="claims_tab_outgoing">My claims</string>
+    <string name="claims_empty_incoming">No claims on your items</string>
+    <string name="claims_empty_incoming_body">When someone says one of your found items is theirs, their claim shows up here.</string>
+    <string name="claims_empty_outgoing">You haven\'t claimed anything</string>
+    <string name="claims_empty_outgoing_body">Open a found item and tap \"This is mine\" to claim it.</string>
+    <string name="snackbar_new_claim">%1$s claimed one of your items</string>
+    <string name="action_view">View</string>
 </resources>
