@@ -13,8 +13,9 @@ import com.matchitcampus.app.domain.model.SyncState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
@@ -63,9 +64,14 @@ class MatchRepositoryTest {
         repository = MatchRepository(db, embedder, scope, clock = { NOW })
     }
 
+    /**
+     * `cancelAndJoin` waits until the watcher started by `start()` has really stopped. A plain
+     * `cancel()` returns at once, so a query still running on `Dispatchers.Default` could hit the
+     * closed database and crash the test process (seen on AVD Pixel_10_Pro).
+     */
     @After
-    fun tearDown() {
-        scope.cancel()
+    fun tearDown() = runBlocking {
+        scope.coroutineContext.job.cancelAndJoin()
         db.close()
     }
 
