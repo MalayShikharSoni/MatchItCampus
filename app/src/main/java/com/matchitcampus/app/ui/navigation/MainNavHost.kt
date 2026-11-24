@@ -10,7 +10,7 @@ import com.matchitcampus.app.BuildConfig
 import com.matchitcampus.app.ui.claims.ClaimsScreen
 import com.matchitcampus.app.ui.debug.DebugToolsRoute
 import com.matchitcampus.app.ui.detail.ItemDetailScreen
-import com.matchitcampus.app.ui.home.HomeScreen
+import com.matchitcampus.app.ui.home.HomeRoute
 import com.matchitcampus.app.ui.map.MapScreen
 import com.matchitcampus.app.ui.myposts.MyPostsScreen
 import com.matchitcampus.app.ui.post.PostItemScreen
@@ -36,8 +36,8 @@ fun MainNavHost(
         modifier = modifier,
     ) {
         composable<Routes.Home> {
-            HomeScreen(
-                onPostItemClick = { navController.navigate(Routes.PostItem) },
+            HomeRoute(
+                onPostItem = { navController.navigate(Routes.PostItem) },
                 onOpenItem = { itemId -> navController.navigate(Routes.ItemDetail(itemId)) },
             )
         }
