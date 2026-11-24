@@ -26,6 +26,8 @@ import com.matchitcampus.app.data.repository.PhotoRepository
 import com.matchitcampus.app.data.repository.ZoneRepository
 import com.matchitcampus.app.data.sync.ConnectivityObserver
 import com.matchitcampus.app.data.sync.SyncManager
+import com.matchitcampus.app.location.GeocoderClient
+import com.matchitcampus.app.location.LocationClient
 import com.matchitcampus.app.ml.TextEmbedderHelper
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -46,7 +48,8 @@ private const val TAG = "MatchIt/AppContainer"
  * ViewModels get what they need from here through their factories.
  *
  * Phase 2 added the Room database and the local repositories; Phase 3 adds Firebase Auth,
- * Firestore and the sync manager; Phase 4 adds the text embedder and matching. Each is created
+ * Firestore and the sync manager; Phase 4 adds the text embedder and matching; Phase 6 adds
+ * location and geocoding. Each is created
  * lazily (`by lazy`) so nothing heavy is built until something actually uses it.
  *
  * @param context any context; only the application context is kept, so an Activity can
@@ -176,6 +179,14 @@ class AppContainer(context: Context) {
             scope = applicationScope,
         )
     }
+
+    // ---------- Location (Phase 6) ----------
+
+    /** Fused location (one-shot and live). Never asks for permission itself; see `LocationPermissionGate`. */
+    val locationClient: LocationClient by lazy { LocationClient(applicationContext) }
+
+    /** Address lines and place search through Android's Geocoder. */
+    val geocoderClient: GeocoderClient by lazy { GeocoderClient(applicationContext) }
 
     private companion object {
         const val ZONES_ASSET = "campus_zones.json"

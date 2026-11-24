@@ -33,6 +33,38 @@ class ZoneRepository(
     suspend fun getZones(): List<CampusZone> = zoneDao.getAll().map { it.toDomain() }
 
     /**
+     * Debug Zone Capture: moves a zone's centre to where the phone is and marks it as real
+     * (`isPlaceholder = false`), so `ZoneResolver` may suggest it from now on.
+     * The radius and name are kept.
+     *
+     * @return the updated zone, or null if no zone has that id.
+     */
+    suspend fun captureZoneLocation(id: String, latitude: Double, longitude: Double): CampusZone? {
+        val zone = zoneDao.getById(id)?.toDomain() ?: return null
+        val updated = zone.copy(latitude = latitude, longitude = longitude, isPlaceholder = false)
+        zoneDao.upsert(updated.toEntity())
+        Log.i(TAG, "Captured zone $id at $latitude, $longitude")
+        return updated
+    }
+
+    /**
+     * Debug Zone Capture: all zones as the text of `campus_zones.json`, to paste back into the
+     * project so the captured coordinates reach every phone on its next fresh install.
+     */
+    suspend fun exportSeedJson(): String {
+        val readme = try {
+            withContext(Dispatchers.IO) { ZoneSeedParser.readme(readSeedJson()) }
+        } catch (e: IOException) {
+            Log.w(TAG, "Couldn't read the seed file's _readme; exporting without it", e)
+            null
+        } catch (e: SerializationException) {
+            Log.w(TAG, "Seed file isn't valid JSON; exporting without its _readme", e)
+            null
+        }
+        return ZoneSeedParser.encode(getZones(), readme.orEmpty())
+    }
+
+    /**
      * Fills the zone table from the JSON file the first time the app runs.
      *
      * It uses a "count == 0" check rather than a `RoomDatabase.Callback.onCreate`, because
