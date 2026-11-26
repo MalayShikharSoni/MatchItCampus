@@ -26,6 +26,13 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Native code (MediaPipe, MapLibre) is packaged only for these CPU types. 32-bit x86 is
+        // left out: only old emulators use it, and it was the largest set (~43 MB of the APK).
+        // armeabi-v7a stays because many budget phones still run 32-bit Android.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
     }
 
     buildTypes {
@@ -46,6 +53,16 @@ android {
         compose = true
         // BuildConfig.DEBUG hides the Debug tools screen in release builds.
         buildConfig = true
+    }
+}
+
+// Compose compiler reports (Phase 7 performance pass): which classes Compose treats as stable and
+// which composables can skip recomposition. Off by default; run
+// `./gradlew assembleDebug -PcomposeReports=true` and read app/build/compose_reports/.
+if (providers.gradleProperty("composeReports").orNull == "true") {
+    composeCompiler {
+        reportsDestination = layout.buildDirectory.dir("compose_reports")
+        metricsDestination = layout.buildDirectory.dir("compose_reports")
     }
 }
 
