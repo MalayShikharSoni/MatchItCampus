@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import com.matchitcampus.app.ui.util.Formatters
 import java.util.UUID
 
 private const val TAG = "MatchIt/DebugTools"
@@ -91,6 +92,36 @@ class DebugToolsViewModel(
             itemRepository.saveItem(item)
             Log.d(TAG, "Posted test item ${item.id}")
             say(R.string.debug_test_item_posted)
+        }
+    }
+
+    /**
+     * Saves one half of [DemoData] as the signed-in user, through the normal repository path
+     * (Room first, then sync uploads them; matching embeds and pairs them like real posts).
+     * Seed FOUND as one account and LOST as another: one person's posts never match each other.
+     * Ids are stable per account, so seeding again updates the same items.
+     */
+    fun onSeedDemo(type: ItemType) {
+        viewModelScope.launch {
+            val user = authRepository.authState.value ?: return@launch
+            val name = authRepository.observeProfile(user.uid).first()?.name?.takeIf { it.isNotBlank() } ?: user.email
+            val today = Formatters.todayEventDateMillis()
+            val now = System.currentTimeMillis()
+            val templates = DemoData.templates(type)
+            templates.forEach { itemRepository.saveItem(DemoData.toItem(it, user.uid, name, today, now)) }
+            Log.d(TAG, "Seeded ${templates.size} demo $type items as ${user.uid}")
+            say(if (type == ItemType.FOUND) R.string.debug_seeded_found else R.string.debug_seeded_lost)
+        }
+    }
+
+    /** Deletes this account's demo items (the normal delete path, so Firestore gets tombstones). */
+    fun onRemoveDemo() {
+        viewModelScope.launch {
+            val user = authRepository.authState.value ?: return@launch
+            val demo = itemRepository.observeMyItems(user.uid).first().filter { it.id.startsWith(DemoData.ID_PREFIX) }
+            demo.forEach { itemRepository.deleteItem(it.id) }
+            Log.d(TAG, "Removed ${demo.size} demo items")
+            say(R.string.debug_demo_removed)
         }
     }
 

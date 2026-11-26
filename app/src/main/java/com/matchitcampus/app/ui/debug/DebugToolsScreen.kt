@@ -10,6 +10,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
+import com.matchitcampus.app.domain.model.ItemType
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -54,6 +58,9 @@ fun DebugToolsRoute(
         onPostTestItem = viewModel::onPostTestItem,
         onThrowTestException = { viewModel.onThrowTestException() },
         onOpenZoneCapture = onOpenZoneCapture,
+        onSeedFound = { viewModel.onSeedDemo(ItemType.FOUND) },
+        onSeedLost = { viewModel.onSeedDemo(ItemType.LOST) },
+        onRemoveDemo = viewModel::onRemoveDemo,
     )
 }
 
@@ -66,6 +73,9 @@ fun DebugToolsScreen(
     onPostTestItem: () -> Unit,
     onThrowTestException: () -> Unit,
     onOpenZoneCapture: () -> Unit,
+    onSeedFound: () -> Unit,
+    onSeedLost: () -> Unit,
+    onRemoveDemo: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -86,6 +96,7 @@ fun DebugToolsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -93,6 +104,16 @@ fun DebugToolsScreen(
             OutlinedButton(onClick = onPostTestItem) { Text(stringResource(R.string.debug_post_test_item)) }
             OutlinedButton(onClick = onOpenZoneCapture) { Text(stringResource(R.string.title_zone_capture)) }
             OutlinedButton(onClick = onThrowTestException) { Text(stringResource(R.string.debug_throw_exception)) }
+
+            Text(stringResource(R.string.debug_demo_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
+            Text(
+                stringResource(R.string.debug_demo_help),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedButton(onClick = onSeedFound) { Text(stringResource(R.string.debug_seed_found)) }
+            OutlinedButton(onClick = onSeedLost) { Text(stringResource(R.string.debug_seed_lost)) }
+            OutlinedButton(onClick = onRemoveDemo) { Text(stringResource(R.string.debug_remove_demo)) }
         }
     }
 }
@@ -108,6 +129,9 @@ private fun DebugToolsScreenPreview() {
             onPostTestItem = {},
             onThrowTestException = {},
             onOpenZoneCapture = {},
+            onSeedFound = {},
+            onSeedLost = {},
+            onRemoveDemo = {},
         )
     }
 }

@@ -314,4 +314,15 @@
     <string name="field_color_short">Colour</string>
     <string name="field_color_hint">e.g. black, navy blue</string>
     <string name="post_error_color_long">Keep the colour under 30 characters</string>
+
+
+    <!-- Debug: demo data (Phase 7) -->
+    <string name="debug_demo_title">Demo data</string>
+    <string name="debug_demo_help">Seed the found items as one account and the lost items as another: one person\'s posts never match each other. Seeding again updates the same items.</string>
+    <string name="debug_seed_found">Seed 10 demo FOUND items</string>
+    <string name="debug_seed_lost">Seed 10 demo LOST items</string>
+    <string name="debug_remove_demo">Remove my demo items</string>
+    <string name="debug_seeded_found">Demo found items saved. Now log in as another account and seed the lost ones.</string>
+    <string name="debug_seeded_lost">Demo lost items saved. Matches appear as soon as they\'re embedded.</string>
+    <string name="debug_demo_removed">Your demo items were deleted</string>
 </resources>
