@@ -17,12 +17,12 @@ From Phase 2 on, all work is committed and pushed directly to `main` (see the
 | 4 Matching engine | Dev B (anugyajais) | `main` | — | yes |
 | 5 Core UI | Dev A (MalayShikharSoni) | `main` | — | yes |
 | 6 Location + map | Dev B (anugyajais) | `main` | — | yes |
-| 7 Polish + migration | Dev A | `main` | — | |
+| 7 Polish + migration | Dev A (MalayShikharSoni) | `main` | — | yes |
 | 8 Tests + docs | Dev B | `main` | — | |
 
 ## 2. Current state
 
-**What works (end of Phase 6):**
+**What works (end of Phase 7):**
 - The project builds (`./gradlew assembleDebug`) and unit tests pass (`./gradlew testDebugUnitTest`).
 - Package / applicationId `com.matchitcampus.app`, minSdk 26, compile/target SDK 37.
 - `MatchItApp` (Application) builds an `AppContainer` holding the app-wide `applicationScope`.
@@ -36,7 +36,7 @@ From Phase 2 on, all work is committed and pushed directly to `main` (see the
     (`navigationSuiteTypeFor`, unit-tested).
 - MediaPipe model `app/src/main/assets/universal_sentence_encoder.tflite` is committed and used by
   `ml/TextEmbedderHelper` (Phase 4).
-- **Room database v1** (`data/local/`): tables `items`, `campus_zones`, `claims`, `users`, `matches`;
+- **Room database (v2 since Phase 7, see below)** (`data/local/`): tables `items`, `campus_zones`, `claims`, `users`, `matches`;
   DAOs (Flow for observed queries, suspend for writes, `@Upsert`); relations `ItemWithZone` and
   `ClaimWithItems`; `Converters` (enums by name, `FloatArray` ↔ little-endian BLOB). The schema is
   exported to `app/schemas/com.matchitcampus.app.data.local.AppDatabase/1.json` (committed).
@@ -77,7 +77,10 @@ From Phase 2 on, all work is committed and pushed directly to `main` (see the
     `observeMatches(itemId)` gives the best 5 live matches (Room Flow); `search(query, type)` ranks
     a feed tab. Logcat: `tag:MatchIt/MatchRepository` (per-component scores of the best matches).
   - The UI shows matches and search from Phase 5 on.
-- Tests: 148 JVM unit tests after Phase 6 (it added `ZoneResolver`, `MapGeoJson`, `ItemPositions`,
+- Tests: **160 JVM unit tests and 56 instrumented tests after Phase 7** (it added the
+  `MigrationTest` pair, colour mapping/merge/normaliser/validation tests, `DemoDataTest` and
+  `HomeLayoutTest`; both suites green on 2026-11-26, instrumented on AVD `Pixel_10_Pro`).
+  Before that: 148 JVM unit tests after Phase 6 (it added `ZoneResolver`, `MapGeoJson`, `ItemPositions`,
   "Near me" sorting and zone JSON export tests; all green on 2026-11-24). Previously 126 JVM unit tests (Phase 5 added feed filtering, form validation, match explanations,
   photo sizing, formatters and My posts grouping) and 54 instrumented tests, including the
   real-model sanity test in `ml/TextEmbedderHelperTest` (both suites green on 2026-11-24, instrumented
@@ -137,6 +140,35 @@ From Phase 2 on, all work is committed and pushed directly to `main` (see the
   - **Zone Capture** (Debug tools): tap a zone → "Set to my current location" (precise only) →
     Room row updated with `isPlaceholder = false`; "Copy JSON" puts all zones, in the
     `campus_zones.json` format (with `_readme`), on the clipboard.
+
+- **Polish and migration (Phase 7).**
+  - **Database v2:** `items.color` (nullable TEXT) via an explicit `MIGRATION_1_2`
+    (`data/local/Migrations.kt`, `ALTER TABLE items ADD COLUMN color TEXT`), registered in
+    `AppDatabase.build`; schema `2.json` exported. `MigrationTest` (instrumented, `MigrationTestHelper`)
+    migrates a real v1 file with a row and validates against `2.json`, then opens it with Room and
+    writes a colour. Colour is on the Post form (optional, ≤ 30 chars), the detail screen, the
+    Firestore document (`color`) and in the embedded text (`title. category. color. description`).
+  - **Seed demo data** (Debug tools): "Seed 10 demo FOUND items" / "Seed 10 demo LOST items" /
+    "Remove my demo items" (`ui/debug/DemoData.kt`). Seed FOUND as one account and LOST as another.
+    Five semantic pairs (earphone case/earbuds cover, specs/glasses, identity card/ID card,
+    wallet/purse, flask/bottle) plus distractors, each with a zone, colour, date and pin near campus.
+  - **Two-pane Home** on expanded width (≥ 840 dp: tablets, big phones in landscape): feed on the
+    left, the selected item's full detail screen on the right (`HomeRoute`, `isTwoPaneWidth`).
+  - The navigation bar/rail only shows on the five tab screens.
+  - Animations: a "Clear filters" chip slides into the filter row (`AnimatedVisibility`) when a
+    filter is on. (Phase 5 already had Crossfade, AnimatedVisibility, animateFloatAsState,
+    animateContentSize and the collapsing FAB.)
+  - Performance pass with Compose compiler reports (`./gradlew assembleDebug -PcomposeReports=true`
+    → `app/build/compose_reports/`): all 100 restartable composables are skippable; the only
+    unstable composable parameter is `NavHostController` (one instance, passed once).
+  - A MatchIt launcher icon (adaptive vector: white pin on the theme blue); the default bitmap icons
+    were removed (minSdk 26 always uses the adaptive one).
+- **Checked on the emulator (2026-11-26, `Pixel_10_Pro`, real Firebase):** Phase 6's Map tab (after
+  the crash fix below), live "my location", "Use my location" on Post (fix + reverse geocode), the
+  pin picker round trip, Zone Capture "Set here", the mini map; demo data seeded as Riya (FOUND) and
+  Aman (LOST) with the real model ranking **all 5 pairs first** (0.89–0.96 vs runners-up 0.67–0.82);
+  colour field and detail line; two-pane Home at tablet size (`adb shell wm size 2560x1600` +
+  `wm density 320`, then `wm size reset` / `wm density reset`); the new icon in the launcher.
 
 **How to run:** open the project root in Android Studio, make sure `app/google-services.json`
 exists (see section 5), then Run ▶ on an emulator or device.
@@ -334,6 +366,36 @@ exists (see section 5), then Run ▶ on an emulator or device.
 - **Phase 6, attribution is plain text** on every map (`map_attribution` string), not MapLibre's
   "i" button, so it's always visible.
 
+- **Phase 7, Map tab crash fixed: MapLibre Compose 0.20 needs a render-backend runtime.** The Map
+  tab crashed with `UnsatisfiedLinkError: libmaplibre-native-c.so not found`: only the JNI wrapper
+  was packaged. The getting-started docs require one runtime artifact on Android; we added
+  `maplibre-compose-runtime-opengl-android:0.20.0` as `runtimeOnly` (OpenGL works on every phone and
+  emulator; the Vulkan one is unreliable on emulators/older phones). Same version as the library.
+- **Phase 7, `ndk.abiFilters = arm64-v8a, armeabi-v7a, x86_64`.** 32-bit x86 (only old emulators)
+  was the biggest native set (~43 MB). armeabi-v7a stays because many budget phones run 32-bit
+  Android. The debug APK is ~166 MB (x86 removed, but the map engine adds ~36 MB).
+- **Phase 7, no re-embedding after the v2 migration** (supersedes the Phase 6 note suggesting a
+  `MODEL_VERSION` bump). `TextNormalizer.forEmbedding` skips blank parts, so an item without a colour
+  embeds exactly the text it did in v1. An item that gets a colour is re-embedded anyway: a local
+  edit clears the embedding, and `ItemDto.toEntity` now counts a colour change as a text change.
+- **Phase 7, demo data is seeded in two halves under two accounts** (deviation from "under the
+  current account"): `MatchScorer` never pairs one person's own posts, so one account would show no
+  matches. Ids are `demo-<key>-<uid prefix>`, so re-seeding updates instead of duplicating, and
+  "Remove my demo items" deletes them through the normal path (tombstones). Pins are illustrative
+  offsets from `CampusMap.CENTER` until real zone coordinates are captured.
+- **Phase 7, `MatchWeights` kept as they are.** On the demo data the real model put every true pair
+  first with a clear margin; distractors' best guesses were plausible near-misses (charger → earphone
+  case, textbook → notebook), which the "top 5, no threshold" design already expects.
+- **Phase 7, two-pane Home is our own `Row`**, not `ListDetailPaneScaffold`: it needs no extra
+  adaptive-layout artifact, and the rule is one testable function (`isTwoPaneWidth`). The selected id
+  is UI state (`rememberSaveable`). `ItemDetailViewModel` now takes `itemId` as a constructor
+  parameter (`ItemDetailViewModel.factory(itemId)`, created with `key = "item-$itemId"`), so the same
+  screen works as a destination and as a pane; the `ItemDetail` route passes `toRoute().itemId`.
+- **Phase 7, no tablet AVD** (to save disk space): tablets were tested by resizing `Pixel_10_Pro`
+  with `adb shell wm size` / `wm density`. A big phone in landscape (~950 dp) is two-pane too.
+- **Phase 7, small fixes found on the device:** the Map legend sat under the status bar
+  (`statusBarsPadding`); the collapsed Post FAB had no accessibility label.
+
 ### Library versions
 
 Checked on Google Maven / Maven Central on 2026-11-05. "In use" means it's already in
@@ -362,6 +424,7 @@ MapLibre Compose, which is pre-1.0.
 | MediaPipe tasks-text | 1.2.3 (re-checked 2026-11-24) | in use (Phase 4) |
 | Play Services Location | 21.4.0 (re-checked 2026-11-24) | in use (Phase 6) |
 | MapLibre Compose | 0.20.0 (minSdk 24, re-checked 2026-11-24) | in use (Phase 6) |
+| MapLibre Compose OpenGL runtime (`maplibre-compose-runtime-opengl-android`) | 0.20.0 (Maven Central, 2026-11-26) | in use (Phase 7, `runtimeOnly`) |
 | Coil 3 (`io.coil-kt.coil3:coil-compose`) | 3.6.3 (re-checked 2026-11-24) | in use (Phase 5) |
 | Turbine | 1.2.1 | in use (androidTest) |
 | JUnit 4 / AndroidX test JUnit / Espresso | 4.13.2 / 1.3.0 / 3.7.0 | in use |
@@ -371,12 +434,14 @@ MapLibre Compose, which is pre-1.0.
 
 - The merged branch `feature/01-scaffold` still exists on GitHub. It's safe to delete it
   (GitHub's "Delete branch" button on PR #1).
-- No tablet emulator exists on Dev A's laptop yet. Create one before Phase 7 (two-pane layout).
-- The launcher icon is still the Android Studio default.
+- ~~No tablet emulator exists on Dev A's laptop yet.~~ Phase 7 tested tablets by resizing the phone
+  emulator instead (see decisions).
+- ~~The launcher icon is still the Android Studio default.~~ Resolved in Phase 7.
 - `ZoneSeedParserTest.realSeedFile_isStillAllPlaceholders` must be updated once real zone
   coordinates are captured. The Zone Capture tool exists since Phase 6; walking the campus and
   pasting the exported JSON into `campus_zones.json` is still to do (Dev A/Dev B by hand).
-- **Phase 6 wasn't tried on an emulator or device in this session's checkpoint** (only build + JVM
+- ~~**Phase 6 wasn't tried on an emulator or device in this session's checkpoint**~~ Done at the
+  start of Phase 7: it found the Map tab crash (fixed, see decisions). Original note: (only build + JVM
   tests). Check the Map tab, "Use my location", the pin picker and Zone Capture at the start of
   Phase 7. On an emulator, set a location under Extended controls → Location first.
 - The maps need the network for tiles (OpenFreeMap); offline they show the grey background only.
@@ -390,7 +455,8 @@ MapLibre Compose, which is pre-1.0.
 - Matches aren't recomputed automatically when a remote change keeps the text (e.g. a moved pin or
   a new date). Partly resolved in Phase 5: the item screen calls `recomputeMatchesFor(itemId)` when it
   opens, so what you look at is always fresh.
-- `MatchWeights` are reasoned starting values, not tuned. Revisit with the Phase 7 demo data.
+- ~~`MatchWeights` are reasoned starting values, not tuned.~~ Checked against the Phase 7 demo data
+  and kept (see decisions).
 - **Photos, Phase 5 limitations:** if an owner *replaces* a photo, other phones that already
   downloaded the old one keep showing it (they only download when they have no copy). Removing a
   photo while editing leaves the old `itemPhotos` document in Firestore (harmless, just orphaned).
@@ -398,10 +464,13 @@ MapLibre Compose, which is pre-1.0.
 - **Phase 8 ViewModel tests:** ViewModels log with `android.util.Log`, which throws in plain JVM
   tests. Add `testOptions { unitTests.isReturnDefaultValues = true }` to `app/build.gradle.kts`
   (or avoid the logging paths) when writing the `HomeViewModel` / `PostItemViewModel` tests.
-- The debug APK is about 169 MB, mostly MediaPipe's native libraries for every CPU architecture.
-  Phase 7 could add ABI splits or `ndk { abiFilters }` for release builds.
-- The bottom navigation bar stays visible on the Post and Item screens (the Phase 1 shell puts the
-  whole NavHost inside it). Fine for now; Phase 7 can hide it on non-tab screens if wanted.
+- The debug APK is about 166 MB (Phase 7 dropped x86; the MapLibre engine added ~36 MB). A release
+  build with R8 or per-ABI APKs/App Bundle would be much smaller; not needed for the course.
+- ~~The bottom navigation bar stays visible on the Post and Item screens.~~ Resolved in Phase 7.
+- **Demo data is in Firebase** since Phase 7: 10 FOUND items under Riya and 10 LOST under Aman.
+  Sign in as each and use Debug tools → "Remove my demo items" to clear them, or keep them for the demo.
+- Zone Capture's "Copy JSON" was tapped in Phase 7 but its result wasn't checked by pasting; do
+  that when capturing the real zones.
 - The real-model sanity test needs a device/emulator (`./gradlew connectedDebugAndroidTest`),
   because MediaPipe runs native code. The JVM tests use a fake `Embedder`.
 
@@ -420,6 +489,8 @@ Things each laptop needs that are **not** in the repo:
   check Wi-Fi in the emulator (it was found switched off once). Its `/data` is nearly full
   (~700 MB free): if `adb install` fails with INSUFFICIENT_STORAGE, run `adb shell pm trim-caches 4G`
   or wipe the AVD's data in Device Manager.
+- **Testing a tablet layout without a tablet AVD:** `adb shell wm size 2560x1600` and
+  `adb shell wm density 320`, then undo with `adb shell wm size reset` and `adb shell wm density reset`.
 - **Dev A's network has Sophos SSL inspection.** Now and then it replaces Google's certificate with
   its own, which Java (Gradle) and Node don't trust, so downloads fail with `PKIX path building
   failed`. Retrying works because Gradle caches what it already downloaded. A permanent fix is to
@@ -427,15 +498,21 @@ Things each laptop needs that are **not** in the repo:
 
 ## 6. Next phase
 
-**Phase 7: Polish + migration**, driven by **Dev A**, working directly on `main`.
-- `git checkout main && git pull` first. Phase 6 is on `main`.
-- First, try Phase 6 on the emulator (see Known issues).
-- Migration v2: add nullable `color` to `items` with an explicit `Migration(1, 2)` and a
-  `MigrationTestHelper` test. The rules already allow `color` (Phase 3). Add it to the Post form,
-  `TextNormalizer.forEmbedding`, the Firestore mappers and the detail screen. Adding colour changes
-  the embedded text, so existing rows need re-embedding (raising `TextEmbedderHelper.MODEL_VERSION`
-  is the simplest way to trigger it).
-- Two-pane Home on expanded width (needs a tablet emulator on Dev A's laptop), animations and a
-  performance pass, and the debug "Seed demo data" (items can now carry pins: give them real
-  coordinates near campus so they show on the map).
-- Optional from the Known issues: hide the bottom bar on non-tab screens, ABI splits for release.
+**Phase 8: Tests and docs**, driven by **Dev B**, working directly on `main`.
+- `git checkout main && git pull` first. Phase 7 is on `main`.
+- **Compose UI tests** (brief §10) can use the existing test tags: `AuthTestTags` (Login),
+  `PostItemTestTags` (TYPE_LOST/TYPE_FOUND, TITLE, DESCRIPTION, COLOR, QUESTION, SUBMIT; the
+  question field only exists for FOUND), `HomeTestTags` (SEARCH, TAB_LOST/TAB_FOUND, LIST, NEAR_ME,
+  CLEAR_FILTERS). The stateless `XxxScreen` composables take plain state, so tests can pass fakes.
+- **ViewModel tests** for `HomeViewModel` (filters, search debounce with `StandardTestDispatcher`) and
+  `PostItemViewModel` (validation, draft restore from `SavedStateHandle`): both take small
+  interfaces (`FeedDataSource`, `PostItemDataSource`) for fakes. They log with `android.util.Log`, so
+  add `testOptions { unitTests.isReturnDefaultValues = true }` (see Known issues).
+- **Docs:** README, ARCHITECTURE (Mermaid), SYLLABUS_MAPPING, DEMO_SCRIPT, DEBUGGING, GIT_WORKFLOW,
+  final HANDOFF, LEARNING_NOTES. For DEMO_SCRIPT, the demo data buttons give a ready-made set
+  (seed FOUND as Riya, LOST as Aman). For SYLLABUS_MAPPING: migration = `Migrations.kt` +
+  `MigrationTest`; responsive UI = `isTwoPaneWidth` / `navigationSuiteTypeFor`; performance =
+  Compose reports flag; animations = see the Phase 5 and 7 notes.
+- The rules test script (Phase 3, emulator) could still be added to the repo (Known issues).
+- Still by hand (brief §14): walk the campus with Zone Capture and paste the JSON into
+  `campus_zones.json`; then update `ZoneSeedParserTest.realSeedFile_isStillAllPlaceholders`.

@@ -514,3 +514,77 @@ examiner might ask, with short answers.
    One location fix when the chip is turned on (no live updates, so the list doesn't jump),
    then `FeedLogic` sorts by haversine distance to the item's pin, or its real zone's centre.
    Items with no position go last. A search ranking still wins over distance.
+
+## Phase 7: Polish and migration
+
+### Concepts used
+
+- **Room migration**: database version 1 → 2 adds `items.color`. `MIGRATION_1_2` runs
+  `ALTER TABLE items ADD COLUMN color TEXT`; Room then checks the result against the exported schema
+  `2.json`. No destructive fallback, so a broken migration fails in testing, not on a phone.
+- **`MigrationTestHelper`**: creates a real v1 database file from `1.json`, inserts a row with plain
+  SQL, runs the migration and validates the schema; the second test opens the file with Room, the way
+  the app does, and writes through the DAO.
+- **Backward-compatible data**: the new column is nullable, old Firestore documents without `color`
+  read as null, and an item without a colour embeds exactly the same text as before, so nothing had to
+  be recomputed after the upgrade.
+- **Responsive layout**: the window size class decides the layout. Under 600 dp a bottom bar, from
+  600 dp a side rail, from 840 dp (expanded) a list-detail Home with the item open on the right. Both
+  rules are plain functions with JVM tests.
+- **Reusing a screen as a pane**: `ItemDetailRoute(itemId)` works as its own destination and inside
+  Home's right pane; `viewModel(key = "item-$itemId", factory = …)` gives each item its own ViewModel.
+- **Animations with a purpose**: the "Clear filters" chip slides in and out with `AnimatedVisibility`
+  inside a `Row` (it expands horizontally by default).
+- **Compose performance, measured**: the Compose compiler reports list which composables are
+  skippable (all 100 here) and which parameters are unstable (only `NavHostController`).
+- **Native libraries and ABIs**: an APK carries `.so` files per CPU type; `abiFilters` chooses which.
+  A missing native dependency fails only at runtime (`UnsatisfiedLinkError`), which is why the Map tab
+  had to be tried on a device.
+- **Debug tooling for demos**: deterministic demo data (stable ids, dates relative to today) seeded
+  through the normal repository path, so it syncs and matches like real posts.
+
+### Key files to read first
+
+1. `data/local/Migrations.kt`, `data/local/AppDatabase.kt` (version 2, `addMigrations`) and
+   `androidTest/.../data/local/MigrationTest.kt`
+2. `domain/matching/TextNormalizer.kt` (`forEmbedding` with colour) and `data/remote/mapper/RemoteMappers.kt`
+3. `ui/home/HomeScreen.kt` (`HomeRoute` two-pane, `isTwoPaneWidth`, the Clear filters chip)
+4. `ui/navigation/MainShell.kt` (bar only on tab screens)
+5. `ui/debug/DemoData.kt` and `DebugToolsViewModel.onSeedDemo`
+6. `app/build.gradle.kts` (`abiFilters`, the MapLibre runtime, the `composeReports` switch)
+
+### Questions an examiner might ask
+
+1. **How does your migration keep users' data?**
+   `ALTER TABLE … ADD COLUMN` changes the table in place: every existing row stays and reads NULL for
+   the new column. Room checks the migrated schema against `2.json` on open. The migration test proves
+   it on a real v1 file with a row in it.
+
+2. **Why no `fallbackToDestructiveMigration()`?**
+   It would silently delete every local post (including unsynced ones) whenever a migration is
+   missing. Without it, a missing migration crashes in testing, which is what we want to see first.
+
+3. **Did adding colour force you to recompute all embeddings?**
+   No. Blank parts are left out of the embedded text, so an item without a colour has exactly the same
+   text as before. Items that do get a colour are re-embedded because editing clears the embedding,
+   and sync treats a colour change as a text change.
+
+4. **How does the app decide between one pane and two?**
+   From the window width class: 840 dp and up is "expanded", so Home shows the list and the selected
+   item side by side; below that, tapping an item navigates to its own screen. A phone in landscape
+   is wide enough for two panes too.
+
+5. **Why seed the demo data as two accounts?**
+   Matching never pairs two posts by the same person, so a single account would show no matches. The
+   found half is seeded as one user and the lost half as another; the five deliberate pairs then come
+   out on top with the real model.
+
+6. **How did you check performance rather than guess?**
+   With the Compose compiler reports (`-PcomposeReports=true`): every restartable composable is
+   skippable, and the only unstable parameter is the navigation controller, passed once. Lists use
+   `key` and `contentType`, the FAB uses `derivedStateOf`, and UI state classes are `@Immutable`.
+
+7. **What went wrong with the map, and how did you find it?**
+   The map library needs a separate render-engine artifact on Android. Without it, the app built and
+   all JVM tests passed, but opening the Map tab crashed with `UnsatisfiedLinkError`. Trying it on the
+   emulator found it; the library's getting-started docs gave the missing `runtimeOnly` dependency.
