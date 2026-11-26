@@ -3,13 +3,10 @@ package com.matchitcampus.app.ui.detail
 import android.util.Log
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Immutable
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import androidx.navigation.toRoute
 import com.matchitcampus.app.R
 import com.matchitcampus.app.data.repository.AuthRepository
 import com.matchitcampus.app.data.repository.ClaimRepository
@@ -23,7 +20,6 @@ import com.matchitcampus.app.domain.model.ItemStatus
 import com.matchitcampus.app.domain.model.ItemType
 import com.matchitcampus.app.domain.model.MatchResult
 import com.matchitcampus.app.domain.model.SyncState
-import com.matchitcampus.app.ui.navigation.Routes
 import com.matchitcampus.app.ui.util.appContainer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -134,7 +130,8 @@ sealed interface ItemDetailEvent {
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ItemDetailViewModel(
-    savedStateHandle: SavedStateHandle,
+    /** The item to show. The caller passes it: from the `ItemDetail` route, or Home's selected item in two-pane mode. */
+    val itemId: String,
     private val itemRepository: ItemRepository,
     private val matchRepository: MatchRepository,
     private val claimRepository: ClaimRepository,
@@ -142,8 +139,6 @@ class ItemDetailViewModel(
     private val photoRepository: PhotoRepository,
 ) : ViewModel() {
 
-    /** `toRoute` rebuilds the typed route from the navigation arguments in the SavedStateHandle. */
-    val itemId: String = savedStateHandle.toRoute<Routes.ItemDetail>().itemId
 
     private val uid: Flow<String?> = authRepository.authState.map { it?.uid }
 
@@ -354,11 +349,15 @@ class ItemDetailViewModel(
     private suspend fun say(@StringRes text: Int) = _events.emit(ItemDetailEvent.Message(text))
 
     companion object {
-        val Factory = viewModelFactory {
+        /**
+         * A factory for one item. Callers also pass `key = itemId` to `viewModel()`, so that in the
+         * two-pane layout each selected item gets its own ViewModel instead of reusing the first one.
+         */
+        fun factory(itemId: String) = viewModelFactory {
             initializer {
                 val container = appContainer()
                 ItemDetailViewModel(
-                    savedStateHandle = createSavedStateHandle(),
+                    itemId = itemId,
                     itemRepository = container.itemRepository,
                     matchRepository = container.matchRepository,
                     claimRepository = container.claimRepository,

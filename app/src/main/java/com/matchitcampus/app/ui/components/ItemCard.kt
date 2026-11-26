@@ -1,5 +1,6 @@
 package com.matchitcampus.app.ui.components
 
+import androidx.compose.material3.CardDefaults
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +35,7 @@ import java.io.File
  * component knowing about it.
  *
  * @param showType show a Lost/Found label, for lists that mix both types.
+ * @param selected highlights the card, e.g. the item open in the two-pane layout's right pane.
  */
 @Composable
 fun ItemCard(
@@ -41,10 +43,16 @@ fun ItemCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     showType: Boolean = false,
+    selected: Boolean = false,
     trailing: @Composable (() -> Unit)? = null,
 ) {
     Card(
         onClick = onClick,
+        colors = if (selected) {
+            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        } else {
+            CardDefaults.cardColors()
+        },
         // animateContentSize: when the status chip or title changes length after a sync,
         // the card grows or shrinks smoothly instead of jumping.
         modifier = modifier

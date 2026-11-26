@@ -325,4 +325,9 @@
     <string name="debug_seeded_found">Demo found items saved. Now log in as another account and seed the lost ones.</string>
     <string name="debug_seeded_lost">Demo lost items saved. Matches appear as soon as they\'re embedded.</string>
     <string name="debug_demo_removed">Your demo items were deleted</string>
+
+    <string name="home_pane_empty_title">Pick an item</string>
+    <string name="home_pane_empty_body">Its details and possible matches appear here.</string>
+
+    <string name="filter_clear">Clear filters</string>
 </resources>

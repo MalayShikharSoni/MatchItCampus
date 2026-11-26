@@ -113,10 +113,11 @@ class ItemDetailCallbacks(
  */
 @Composable
 fun ItemDetailRoute(
+    itemId: String,
     onBack: () -> Unit,
     onOpenItem: (itemId: String) -> Unit,
     onEdit: (itemId: String) -> Unit,
-    viewModel: ItemDetailViewModel = viewModel(factory = ItemDetailViewModel.Factory),
+    viewModel: ItemDetailViewModel = viewModel(key = "item-$itemId", factory = ItemDetailViewModel.factory(itemId)),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val claimDraft by viewModel.claimDraft.collectAsStateWithLifecycle()

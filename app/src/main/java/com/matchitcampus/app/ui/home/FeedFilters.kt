@@ -35,6 +35,9 @@ data class FeedFilters(
     /** True if something is filtered out. The sort order alone hides nothing, so it doesn't count. */
     val isActive: Boolean get() = copy(sort = FeedSort.NEWEST) != FeedFilters()
 
+    /** Every filter off, keeping the chosen sort ("Near me" stays on if it was). */
+    fun cleared(): FeedFilters = FeedFilters(sort = sort)
+
     /** True if [item] passes every active filter. [today] is passed in so tests can fix it. */
     fun matches(item: Item, today: LocalDate): Boolean {
         if (category != null && item.category != category) return false

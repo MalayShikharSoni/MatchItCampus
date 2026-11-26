@@ -1,5 +1,13 @@
 package com.matchitcampus.app.ui.home
 
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.InputChip
+import com.matchitcampus.app.ui.detail.ItemDetailRoute
+import androidx.window.core.layout.WindowSizeClass
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.key
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.horizontalScroll
@@ -84,14 +92,24 @@ object HomeTestTags {
     const val TAB_LOST = "home_tab_lost"
     const val TAB_FOUND = "home_tab_found"
     const val LIST = "home_list"
+    const val CLEAR_FILTERS = "home_clear_filters"
     const val NEAR_ME = "home_near_me"
 }
 
-/** Stateful entry point: connects [HomeViewModel] to the stateless [HomeScreen]. */
+/**
+ * Stateful entry point: connects [HomeViewModel] to the stateless [HomeScreen].
+ *
+ * **Responsive layout.** On an expanded-width window (840 dp and up: a tablet, or a large phone in
+ * landscape) the feed and the selected item are shown side by side (list-detail). Tapping a card
+ * then fills the right pane instead of navigating, so the list keeps its place. On narrower
+ * windows a tap navigates to the item's own screen, as before. The selected id is UI state, kept
+ * with `rememberSaveable` so it survives rotation; if the window shrinks, the list simply shows alone.
+ */
 @Composable
 fun HomeRoute(
     onPostItem: () -> Unit,
     onOpenItem: (itemId: String) -> Unit,
+    onEditItem: (itemId: String) -> Unit,
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -101,25 +119,66 @@ fun HomeRoute(
     LaunchedEffect(Unit) {
         viewModel.messages.collect { snackbarHostState.showSnackbar(context.getString(it)) }
     }
+    val twoPane = isTwoPaneWidth(currentWindowAdaptiveInfoV2().windowSizeClass)
+    var selectedItemId by rememberSaveable { mutableStateOf<String?>(null) }
+
     // The permission gate needs an Activity, so it wraps the screen here rather than inside it.
     LocationPermissionGate(onGranted = viewModel::onNearMeGranted) { requestLocation ->
-        HomeScreen(
-            state = state,
-            query = query,
-            snackbarHostState = snackbarHostState,
-            onQueryChange = viewModel::onQueryChange,
-            onTabSelected = viewModel::onTabSelected,
-            onFiltersChange = viewModel::onFiltersChange,
-            onNearMe = requestLocation,
-            onNearMeOff = viewModel::onNearMeOff,
-            onClearSearchAndFilters = viewModel::onClearSearchAndFilters,
-            onRefresh = viewModel::onRefresh,
-            onRetry = viewModel::onRetry,
-            onPostItem = onPostItem,
-            onOpenItem = onOpenItem,
-        )
+        val feed: @Composable (Modifier) -> Unit = { paneModifier ->
+            HomeScreen(
+                state = state,
+                query = query,
+                snackbarHostState = snackbarHostState,
+                onQueryChange = viewModel::onQueryChange,
+                onTabSelected = viewModel::onTabSelected,
+                onFiltersChange = viewModel::onFiltersChange,
+                onNearMe = requestLocation,
+                onNearMeOff = viewModel::onNearMeOff,
+                onClearSearchAndFilters = viewModel::onClearSearchAndFilters,
+                onRefresh = viewModel::onRefresh,
+                onRetry = viewModel::onRetry,
+                onPostItem = onPostItem,
+                onOpenItem = if (twoPane) { id -> selectedItemId = id } else onOpenItem,
+                selectedItemId = if (twoPane) selectedItemId else null,
+                modifier = paneModifier,
+            )
+        }
+        if (twoPane) {
+            Row(Modifier.fillMaxSize()) {
+                feed(Modifier.weight(0.42f))
+                VerticalDivider()
+                Box(Modifier.weight(0.58f)) {
+                    val id = selectedItemId
+                    if (id == null) {
+                        EmptyState(
+                            title = stringResource(R.string.home_pane_empty_title),
+                            body = stringResource(R.string.home_pane_empty_body),
+                        )
+                    } else {
+                        // key(id): a new item gets fresh detail state (expanded "why" rows, scroll).
+                        key(id) {
+                            ItemDetailRoute(
+                                itemId = id,
+                                onBack = { selectedItemId = null },
+                                onOpenItem = { selectedItemId = it },
+                                onEdit = onEditItem,
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
+            feed(Modifier)
+        }
     }
 }
+
+/**
+ * True when the window is wide enough for list-detail: the Material "expanded" width class
+ * (840 dp and up). A plain function so it can be unit-tested on the JVM, like `navigationSuiteTypeFor`.
+ */
+fun isTwoPaneWidth(windowSizeClass: WindowSizeClass): Boolean =
+    windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND)
 
 /** What the list area shows. [Crossfade] fades between these instead of jumping. */
 private enum class FeedContent { LOADING, ERROR, EMPTY, LIST }
@@ -149,6 +208,7 @@ fun HomeScreen(
     onPostItem: () -> Unit,
     onOpenItem: (itemId: String) -> Unit,
     modifier: Modifier = Modifier,
+    selectedItemId: String? = null,
 ) {
     val listState = rememberLazyListState()
     // derivedStateOf: the scroll position changes on every frame while scrolling, but this
@@ -164,7 +224,14 @@ fun HomeScreen(
             ExtendedFloatingActionButton(
                 onClick = onPostItem,
                 expanded = fabExpanded,
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                // Collapsed, the text is hidden, so the icon must carry the label for TalkBack;
+                // expanded, the text already says it and the icon stays silent (no double reading).
+                icon = {
+                    Icon(
+                        Icons.Filled.Add,
+                        contentDescription = if (fabExpanded) null else stringResource(R.string.action_post_item),
+                    )
+                },
                 text = { Text(stringResource(R.string.action_post_item)) },
             )
         },
@@ -206,7 +273,7 @@ fun HomeScreen(
                         FeedContent.LOADING -> LoadingState()
                         FeedContent.ERROR -> ErrorState(message = stringResource(R.string.home_error), onRetry = onRetry)
                         FeedContent.EMPTY -> FeedEmptyState(state, onPostItem, onClearSearchAndFilters)
-                        FeedContent.LIST -> FeedList(state, listState, onOpenItem)
+                        FeedContent.LIST -> FeedList(state, listState, selectedItemId, onOpenItem)
                     }
                 }
             }
@@ -258,6 +325,18 @@ private fun FilterChipsRow(
             .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        // Slides in (expandHorizontally, AnimatedVisibility's default inside a Row) as soon as any
+        // filter is on, and out again when cleared: the animation shows the user where the
+        // "undo" for their filters went.
+        AnimatedVisibility(visible = filters.isActive) {
+            InputChip(
+                selected = true,
+                onClick = { onFiltersChange(filters.cleared()) },
+                label = { Text(stringResource(R.string.filter_clear)) },
+                trailingIcon = { Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                modifier = Modifier.testTag(HomeTestTags.CLEAR_FILTERS),
+            )
+        }
         val nearMe = filters.sort == FeedSort.NEAR_ME
         FilterChip(
             selected = nearMe,
@@ -344,7 +423,7 @@ private fun <T> DropdownFilterChip(
 }
 
 @Composable
-private fun FeedList(state: HomeUiState, listState: LazyListState, onOpenItem: (String) -> Unit) {
+private fun FeedList(state: HomeUiState, listState: LazyListState, selectedItemId: String?, onOpenItem: (String) -> Unit) {
     LazyColumn(
         state = listState,
         // Extra bottom padding so the FAB never covers the last card.
@@ -362,6 +441,7 @@ private fun FeedList(state: HomeUiState, listState: LazyListState, onOpenItem: (
             ItemCard(
                 item = item,
                 onClick = { onOpenItem(item.id) },
+                selected = item.id == selectedItemId,
                 trailing = distance?.let {
                     { Text(Formatters.distance(it), style = MaterialTheme.typography.labelMedium) }
                 },

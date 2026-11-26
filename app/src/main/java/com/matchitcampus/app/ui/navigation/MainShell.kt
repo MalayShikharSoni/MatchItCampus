@@ -13,6 +13,7 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -77,10 +78,14 @@ fun MainShell(
     val currentDestination = backStackEntry?.destination
 
     val windowSizeClass = currentWindowAdaptiveInfoV2().windowSizeClass
+    // The bar/rail is for switching tabs, so it only shows on the five tab screens. Screens
+    // opened from a tab (Post, Item details, pin picker, Debug tools) get the whole window and
+    // a Back arrow instead. null = the NavHost hasn't set its first destination yet.
+    val onTabScreen = currentDestination == null || TopLevelDestination.entries.any { currentDestination.isInTab(it) }
 
     NavigationSuiteScaffold(
         modifier = modifier,
-        layoutType = navigationSuiteTypeFor(windowSizeClass),
+        layoutType = if (onTabScreen) navigationSuiteTypeFor(windowSizeClass) else NavigationSuiteType.None,
         navigationSuiteItems = {
             TopLevelDestination.entries.forEach { destination ->
                 item(

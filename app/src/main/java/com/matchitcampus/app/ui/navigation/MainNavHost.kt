@@ -7,6 +7,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.toRoute
 import com.matchitcampus.app.BuildConfig
 import com.matchitcampus.app.location.LatLng
 import com.matchitcampus.app.ui.claims.ClaimsRoute
@@ -49,6 +50,7 @@ fun MainNavHost(
             HomeRoute(
                 onPostItem = { navController.navigate(Routes.PostItem()) },
                 onOpenItem = { itemId -> navController.navigate(Routes.ItemDetail(itemId)) },
+                onEditItem = { itemId -> navController.navigate(Routes.PostItem(editItemId = itemId)) },
             )
         }
         composable<Routes.Map> {
@@ -107,9 +109,10 @@ fun MainNavHost(
                 },
             )
         }
-        composable<Routes.ItemDetail> {
-            // The ViewModel reads itemId itself, with toRoute() on its SavedStateHandle.
+        composable<Routes.ItemDetail> { backStackEntry ->
+            // toRoute() rebuilds the typed route object, so itemId is a String, not a raw argument.
             ItemDetailRoute(
+                itemId = backStackEntry.toRoute<Routes.ItemDetail>().itemId,
                 onBack = goBack,
                 onOpenItem = { itemId -> navController.navigate(Routes.ItemDetail(itemId)) },
                 onEdit = { itemId -> navController.navigate(Routes.PostItem(editItemId = itemId)) },
