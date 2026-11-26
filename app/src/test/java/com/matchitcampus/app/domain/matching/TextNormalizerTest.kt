@@ -35,6 +35,19 @@ class TextNormalizerTest {
     }
 
     @Test
+    fun forEmbedding_putsTheColourAfterTheCategory_andNoColourChangesNothing() {
+        assertEquals(
+            "black earbuds case. electronics. matte black. jbl",
+            TextNormalizer.forEmbedding("Black earbuds case", "Electronics", "JBL", color = "Matte black"),
+        )
+        // Items from before database v2 have no colour: their text (and stored embedding) is unchanged.
+        assertEquals(
+            TextNormalizer.forEmbedding("Black earbuds case", "Electronics", "JBL"),
+            TextNormalizer.forEmbedding("Black earbuds case", "Electronics", "JBL", color = "  "),
+        )
+    }
+
+    @Test
     fun tokens_dropsPunctuationStopWordsAndSingleLetters() {
         assertEquals(
             setOf("black", "jbl", "case", "block", "34"),

@@ -46,6 +46,16 @@ class RemoteMappersTest {
     }
 
     @Test
+    fun item_colour_roundTrips_andOldDocumentsWithoutItReadAsNull() {
+        val coloured = item.copy(color = "navy blue")
+        assertEquals(coloured.copy(serverUpdatedAtMillis = 1L), itemDtoFromMap("item-1", coloured.toFirestoreMap(), 1L))
+
+        // A document written before database v2 has no "color" key at all.
+        val oldDocument = item.toFirestoreMap() - Fields.COLOR
+        assertEquals(null, itemDtoFromMap("item-1", oldDocument, 1L)!!.color)
+    }
+
+    @Test
     fun item_map_storesEnumsAsNames_andHasEveryKey() {
         val map = item.toFirestoreMap()
         assertEquals("LOST", map[Fields.TYPE])

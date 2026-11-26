@@ -279,6 +279,7 @@ private fun ItemHeader(state: ItemDetailUiState, item: Item) {
         Text(item.title, style = MaterialTheme.typography.headlineSmall)
         Text(item.description, style = MaterialTheme.typography.bodyLarge)
         InfoLine(stringResource(R.string.field_category), item.category.displayName)
+        item.color?.let { InfoLine(stringResource(R.string.field_color_short), it) }
         InfoLine(
             label = stringResource(if (item.type == ItemType.LOST) R.string.field_date_lost else R.string.field_date_found),
             value = "${Formatters.eventDate(item.eventDate)} (${relativeEventDate(item.eventDate)})",

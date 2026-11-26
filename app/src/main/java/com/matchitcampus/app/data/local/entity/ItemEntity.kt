@@ -68,6 +68,11 @@ data class ItemEntity(
     val embedding: FloatArray?,
     val embeddingVersion: Int?,
     val syncState: SyncState,
+    /**
+     * Added in database version 2 by `MIGRATION_1_2` (`ALTER TABLE items ADD COLUMN color TEXT`).
+     * Nullable, so every existing row simply gets NULL and nothing has to be rewritten.
+     */
+    val color: String? = null,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -93,7 +98,8 @@ data class ItemEntity(
             // The one field that needs care: compare array contents, not references.
             embedding.contentEquals(other.embedding) &&
             embeddingVersion == other.embeddingVersion &&
-            syncState == other.syncState
+            syncState == other.syncState &&
+            color == other.color
     }
 
     /** Uses a few fields only, which is allowed: equal objects still get equal hash codes. */

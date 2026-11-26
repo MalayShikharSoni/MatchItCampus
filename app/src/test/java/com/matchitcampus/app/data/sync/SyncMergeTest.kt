@@ -83,11 +83,22 @@ class SyncMergeTest {
         assertNull(entity.embeddingVersion)
     }
 
+    @Test
+    fun embedding_isCleared_whenOnlyTheColourChanged() {
+        // The colour is part of the embedded text (v2), so a new colour needs a new vector.
+        val local = local(updatedAt = 100L, embedding = floatArrayOf(0.1f, 0.2f))
+        val entity = (SyncMerge.decide(local, remote(updatedAt = 200L, color = "black"))
+            as SyncMerge.ItemDecision.Write).entity
+        assertEquals("black", entity.color)
+        assertNull(entity.embedding)
+    }
+
     private fun remote(
         updatedAt: Long,
         title: String = "Black earbuds case",
         status: ItemStatus = ItemStatus.OPEN,
         deleted: Boolean = false,
+        color: String? = null,
     ) = ItemDto(
         id = "item-1",
         type = ItemType.FOUND,
@@ -107,6 +118,7 @@ class SyncMergeTest {
         verificationQuestion = "What sticker is on it?",
         hasPhoto = false,
         deleted = deleted,
+        color = color,
     )
 
     private fun local(

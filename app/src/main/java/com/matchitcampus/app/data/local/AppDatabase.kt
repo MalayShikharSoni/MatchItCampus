@@ -20,7 +20,7 @@ import com.matchitcampus.app.data.local.entity.UserEntity
  * The app's Room database, and its single source of truth.
  *
  * - `version` goes up by one whenever the schema changes, and each change needs a
- *   `Migration` (the first one comes in Phase 7). There is deliberately no destructive
+ *   `Migration` (see Migrations.kt; v2 added `items.color` in Phase 7). There is deliberately no destructive
  *   fallback: if a migration is missing, the app crashes in testing instead of silently
  *   deleting users' data.
  * - `exportSchema = true` writes each version's schema to `app/schemas/` (set up in
@@ -39,7 +39,7 @@ import com.matchitcampus.app.data.local.entity.UserEntity
         UserEntity::class,
         MatchEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -57,6 +57,7 @@ abstract class AppDatabase : RoomDatabase() {
         /** Builds the on-disk database. Call it once (AppContainer does) and share the result. */
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, DATABASE_NAME)
+                .addMigrations(*ALL_MIGRATIONS)
                 .build()
     }
 }

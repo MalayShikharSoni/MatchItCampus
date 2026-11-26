@@ -56,6 +56,13 @@ class PostItemValidatorTest {
     }
 
     @Test
+    fun colour_isOptional_butLimitedTo30Characters() {
+        assertTrue(errors(validLost.copy(color = "")).isEmpty())
+        assertTrue(errors(validLost.copy(color = "navy blue")).isEmpty())
+        assertEquals(FieldError.TOO_LONG, errors(validLost.copy(color = "x".repeat(31)))[PostField.COLOR])
+    }
+
+    @Test
     fun date_inTheFuture_isRejected_todayIsFine() {
         assertEquals(FieldError.IN_FUTURE, errors(validLost.copy(eventDate = today + day))[PostField.DATE])
         assertFalse(PostField.DATE in errors(validLost.copy(eventDate = today - day)))

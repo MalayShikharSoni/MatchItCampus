@@ -65,6 +65,7 @@ fun ItemEntity.toDomain(zone: CampusZone? = null): Item = Item(
     hasPhoto = hasPhoto,
     localPhotoPath = localPhotoPath,
     syncState = syncState,
+    color = color,
 )
 
 fun ItemWithZone.toDomain(): Item = item.toDomain(zone?.toDomain())
@@ -97,6 +98,7 @@ fun Item.toEntity(embedding: FloatArray? = null, embeddingVersion: Int? = null):
     embedding = embedding,
     embeddingVersion = embeddingVersion,
     syncState = syncState,
+    color = color,
 )
 
 fun ClaimEntity.toDomain(foundItem: Item? = null, lostItem: Item? = null): Claim = Claim(

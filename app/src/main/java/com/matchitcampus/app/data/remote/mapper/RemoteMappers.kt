@@ -45,6 +45,7 @@ object Fields {
     const val VERIFICATION_QUESTION = "verificationQuestion"
     const val HAS_PHOTO = "hasPhoto"
     const val DELETED = "deleted"
+    const val COLOR = "color"
 
     const val FOUND_ITEM_ID = "foundItemId"
     const val LOST_ITEM_ID = "lostItemId"
@@ -80,6 +81,7 @@ fun ItemEntity.toDto(): ItemDto = ItemDto(
     verificationQuestion = verificationQuestion,
     hasPhoto = hasPhoto,
     deleted = false,
+    color = color,
 )
 
 /**
@@ -106,6 +108,7 @@ fun ItemDto.toFirestoreMap(): Map<String, Any?> = mapOf(
     Fields.VERIFICATION_QUESTION to verificationQuestion,
     Fields.HAS_PHOTO to hasPhoto,
     Fields.DELETED to deleted,
+    Fields.COLOR to color,
 )
 
 /**
@@ -136,6 +139,8 @@ fun itemDtoFromMap(id: String, data: Map<String, Any?>, serverUpdatedAtMillis: L
         hasPhoto = data[Fields.HAS_PHOTO] as? Boolean ?: false,
         deleted = data[Fields.DELETED] as? Boolean ?: false,
         serverUpdatedAtMillis = serverUpdatedAtMillis,
+        // Absent on documents written before Phase 7, which reads as "no colour".
+        color = data[Fields.COLOR] as? String,
     )
 }
 
@@ -155,7 +160,8 @@ fun ItemDto.toEntity(existing: ItemEntity?): ItemEntity {
     val sameText = existing != null &&
         existing.title == title &&
         existing.description == description &&
-        existing.category == category
+        existing.category == category &&
+        existing.color == color
     return ItemEntity(
         id = id,
         type = type,
@@ -179,6 +185,7 @@ fun ItemDto.toEntity(existing: ItemEntity?): ItemEntity {
         embedding = if (sameText) existing.embedding else null,
         embeddingVersion = if (sameText) existing.embeddingVersion else null,
         syncState = SyncState.SYNCED,
+        color = color,
     )
 }
 

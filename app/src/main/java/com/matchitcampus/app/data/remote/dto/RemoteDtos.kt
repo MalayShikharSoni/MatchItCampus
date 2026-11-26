@@ -49,6 +49,8 @@ data class ItemDto(
     val hasPhoto: Boolean,
     val deleted: Boolean,
     val serverUpdatedAtMillis: Long? = null,
+    /** Optional; the security rules have allowed it since Phase 3, so v1 and v2 apps can share documents. */
+    val color: String? = null,
 )
 
 /** One `claims/{id}` document. Same timestamp fields as [ItemDto]. */

@@ -35,18 +35,26 @@ object TextNormalizer {
 
     /**
      * The text that represents [item] for embedding and keyword matching:
-     * `"<title>. <category>. <description>"`, normalised and capped at [MAX_EMBEDDING_CHARS].
+     * `"<title>. <category>. <color>. <description>"`, normalised and capped at [MAX_EMBEDDING_CHARS].
      *
      * The category's display name is included because it adds meaning the user may not have
      * typed: "purse" plus "wallets & cards" is closer to "wallet" than "purse" alone.
-     * The colour field joins in Phase 7, when the database gets its `color` column.
+     * The colour (database v2, Phase 7) helps "black case" beat "blue case".
+     *
+     * An item without a colour produces exactly the same text as before v2, so the embeddings
+     * already stored stay valid and nothing has to be recomputed after the migration.
      */
     fun forEmbedding(item: Item): String =
-        forEmbedding(title = item.title, categoryName = item.category.displayName, description = item.description)
+        forEmbedding(
+            title = item.title,
+            categoryName = item.category.displayName,
+            description = item.description,
+            color = item.color,
+        )
 
     /** The same, from the separate fields. Blank parts are left out, so there are no empty ". ." pieces. */
-    fun forEmbedding(title: String, categoryName: String, description: String): String =
-        listOf(title, categoryName, description)
+    fun forEmbedding(title: String, categoryName: String, description: String, color: String? = null): String =
+        listOf(title, categoryName, color.orEmpty(), description)
             .map { it.trim().trimEnd('.') }
             .filter { it.isNotEmpty() }
             .joinToString(". ")

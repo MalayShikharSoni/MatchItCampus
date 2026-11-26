@@ -92,6 +92,7 @@ object PostItemTestTags {
     const val TYPE_FOUND = "post_type_found"
     const val TITLE = "post_title"
     const val DESCRIPTION = "post_description"
+    const val COLOR = "post_color"
     const val QUESTION = "post_question"
     const val SUBMIT = "post_submit"
 }
@@ -246,6 +247,18 @@ fun PostItemScreen(
                     .testTag(PostItemTestTags.DESCRIPTION),
             )
             CategoryField(form.category, state, onAction)
+            OutlinedTextField(
+                value = form.color,
+                onValueChange = { onAction(PostItemAction.ColorChanged(it)) },
+                label = { Text(stringResource(R.string.field_color)) },
+                placeholder = { Text(stringResource(R.string.field_color_hint)) },
+                singleLine = true,
+                isError = PostField.COLOR in state.visibleErrors,
+                supportingText = fieldSupportingText(state, PostField.COLOR),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(PostItemTestTags.COLOR),
+            )
             ClickableField(
                 label = stringResource(if (form.type == ItemType.LOST) R.string.field_date_lost else R.string.field_date_found),
                 value = Formatters.eventDate(form.eventDate),
@@ -538,6 +551,7 @@ private fun errorRes(field: PostField, error: FieldError): Int = when (field) {
     PostField.DESCRIPTION ->
         if (error == FieldError.TOO_LONG) R.string.post_error_description_long else R.string.post_error_description_required
     PostField.CATEGORY -> R.string.post_error_category_required
+    PostField.COLOR -> R.string.post_error_color_long
     PostField.DATE -> R.string.post_error_date_future
     PostField.ZONE -> R.string.post_error_zone_required
     PostField.QUESTION ->
@@ -548,6 +562,7 @@ private fun PostField.labelRes(): Int = when (this) {
     PostField.TITLE -> R.string.field_title
     PostField.DESCRIPTION -> R.string.field_description
     PostField.CATEGORY -> R.string.field_category
+    PostField.COLOR -> R.string.field_color
     PostField.DATE -> R.string.field_date
     PostField.ZONE -> R.string.field_zone
     PostField.QUESTION -> R.string.field_question

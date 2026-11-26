@@ -68,6 +68,7 @@ sealed interface PostItemAction {
     data class DateChanged(val eventDate: Long) : PostItemAction
     data class ZoneChanged(val zoneId: String) : PostItemAction
     data class QuestionChanged(val value: String) : PostItemAction
+    data class ColorChanged(val value: String) : PostItemAction
     data class PhotoPicked(val uri: Uri) : PostItemAction
     data object RemovePhoto : PostItemAction
 
@@ -175,6 +176,7 @@ class PostItemViewModel(
             is PostItemAction.DateChanged -> updateForm(PostField.DATE) { it.copy(eventDate = action.eventDate) }
             is PostItemAction.ZoneChanged -> updateForm(PostField.ZONE) { it.copy(zoneId = action.zoneId) }
             is PostItemAction.QuestionChanged -> updateForm(PostField.QUESTION) { it.copy(verificationQuestion = action.value) }
+            is PostItemAction.ColorChanged -> updateForm(PostField.COLOR) { it.copy(color = action.value) }
             is PostItemAction.PhotoPicked -> processPhoto(action.uri)
             PostItemAction.RemovePhoto -> removePhoto()
             is PostItemAction.UseMyLocation -> useMyLocation(action.precise)
@@ -209,6 +211,7 @@ class PostItemViewModel(
                     title = item.title,
                     description = item.description,
                     category = item.category,
+                    color = item.color.orEmpty(),
                     eventDate = item.eventDate,
                     zoneId = item.zoneId,
                     verificationQuestion = item.verificationQuestion.orEmpty(),
@@ -383,6 +386,7 @@ class PostItemViewModel(
             title = form.title.trim(),
             description = form.description.trim(),
             category = form.category ?: Category.OTHER,
+            color = form.color.trim().ifEmpty { null },
             eventDate = form.eventDate,
             zoneId = form.zoneId,
             zone = null,
@@ -407,6 +411,7 @@ class PostItemViewModel(
         savedStateHandle[KEY_TITLE] = form.title
         savedStateHandle[KEY_DESCRIPTION] = form.description
         savedStateHandle[KEY_CATEGORY] = form.category?.name
+        savedStateHandle[KEY_COLOR] = form.color
         savedStateHandle[KEY_EVENT_DATE] = form.eventDate
         savedStateHandle[KEY_ZONE] = form.zoneId
         savedStateHandle[KEY_QUESTION] = form.verificationQuestion
@@ -424,6 +429,7 @@ class PostItemViewModel(
         title = savedStateHandle[KEY_TITLE] ?: "",
         description = savedStateHandle[KEY_DESCRIPTION] ?: "",
         category = savedStateHandle.get<String>(KEY_CATEGORY)?.let(Category::valueOf),
+        color = savedStateHandle[KEY_COLOR] ?: "",
         eventDate = savedStateHandle[KEY_EVENT_DATE] ?: todayEventDate(),
         zoneId = savedStateHandle[KEY_ZONE],
         verificationQuestion = savedStateHandle[KEY_QUESTION] ?: "",
@@ -461,6 +467,7 @@ class PostItemViewModel(
         private const val KEY_LATITUDE = "post_latitude"
         private const val KEY_LONGITUDE = "post_longitude"
         private const val KEY_ADDRESS = "post_address"
+        private const val KEY_COLOR = "post_color"
 
         val Factory = viewModelFactory {
             initializer {

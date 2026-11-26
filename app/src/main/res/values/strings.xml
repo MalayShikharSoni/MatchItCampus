@@ -307,4 +307,11 @@
         <item quantity="one">%1$d open item has no map position</item>
         <item quantity="other">%1$d open items have no map position</item>
     </plurals>
+
+
+    <!-- Colour (Phase 7, database v2) -->
+    <string name="field_color">Colour (optional)</string>
+    <string name="field_color_short">Colour</string>
+    <string name="field_color_hint">e.g. black, navy blue</string>
+    <string name="post_error_color_long">Keep the colour under 30 characters</string>
 </resources>

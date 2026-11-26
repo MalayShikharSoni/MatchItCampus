@@ -5,7 +5,7 @@ import com.matchitcampus.app.domain.model.Category
 import com.matchitcampus.app.domain.model.ItemType
 
 /** The form's fields that can be invalid, in the order they appear on screen. */
-enum class PostField { TITLE, DESCRIPTION, CATEGORY, DATE, ZONE, QUESTION }
+enum class PostField { TITLE, DESCRIPTION, CATEGORY, COLOR, DATE, ZONE, QUESTION }
 
 enum class FieldError { REQUIRED, TOO_SHORT, TOO_LONG, IN_FUTURE }
 
@@ -31,6 +31,8 @@ data class PostItemForm(
     val title: String = "",
     val description: String = "",
     val category: Category? = null,
+    /** Optional (database v2). Typed freely, e.g. "navy blue"; blank means no colour. */
+    val color: String = "",
     val eventDate: Long = 0L,
     val zoneId: String? = null,
     val verificationQuestion: String = "",
@@ -58,6 +60,7 @@ object PostItemValidator {
     const val TITLE_MAX = 60
     const val DESCRIPTION_MAX = 500
     const val QUESTION_MAX = 120
+    const val COLOR_MAX = 30
 
     /**
      * @param todayEventDate today as an `eventDate` value; later dates are rejected.
@@ -76,6 +79,7 @@ object PostItemValidator {
             description.length > DESCRIPTION_MAX -> put(PostField.DESCRIPTION, FieldError.TOO_LONG)
         }
         if (form.category == null) put(PostField.CATEGORY, FieldError.REQUIRED)
+        if (form.color.trim().length > COLOR_MAX) put(PostField.COLOR, FieldError.TOO_LONG)
         if (form.eventDate > todayEventDate) put(PostField.DATE, FieldError.IN_FUTURE)
         if (form.zoneId == null) put(PostField.ZONE, FieldError.REQUIRED)
         // Only FOUND items have a question: it's how the finder checks a claimant is the owner.

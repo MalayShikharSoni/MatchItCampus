@@ -15,6 +15,8 @@ package com.matchitcampus.app.domain.model
  * @property eventDate when the item was lost or found (not when it was posted).
  * @property verificationQuestion asked of anyone who claims a FOUND item; null for LOST.
  * @property localPhotoPath the photo's file on this device, if it has been saved or downloaded.
+ * @property color the item's colour as the poster typed it ("black", "navy blue"), or null.
+ *   Added in database version 2 (Phase 7); it's part of the text that matching embeds.
  */
 data class Item(
     val id: String,
@@ -37,4 +39,5 @@ data class Item(
     val hasPhoto: Boolean,
     val localPhotoPath: String?,
     val syncState: SyncState,
+    val color: String? = null,
 )
