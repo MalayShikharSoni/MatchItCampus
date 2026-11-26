@@ -73,6 +73,10 @@ coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref 
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
 # MapLibre Compose: open-source maps in Compose (stands in for Google Maps Compose; no API key or billing).
 maplibre-compose = { group = "org.maplibre.compose", name = "maplibre-compose", version.ref = "maplibreCompose" }
+# The map engine itself (native code). MapLibre Compose 0.20 needs exactly one render-backend runtime
+# on Android; without it the Map tab crashes (libmaplibre-native-c.so missing). OpenGL works on every
+# phone and emulator; the Vulkan one is unreliable on emulators and older devices. Same version as above.
+maplibre-compose-runtime-opengl = { group = "org.maplibre.compose", name = "maplibre-compose-runtime-opengl-android", version.ref = "maplibreCompose" }
 
 # Compose: versions come from the BOM, so these entries have no version.
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }

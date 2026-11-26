@@ -86,6 +86,7 @@ dependencies {
     // Phase 6: fused location (LocationClient) and the map (MapLibre Compose + OpenFreeMap tiles).
     implementation(libs.play.services.location)
     implementation(libs.maplibre.compose)
+    runtimeOnly(libs.maplibre.compose.runtime.opengl)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
